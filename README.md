@@ -8,10 +8,21 @@ one deploy and one look.
 
 ## Games
 
-| Game | Path | Status |
-|------|------|--------|
-| **PONG** (1972) | [`/pong/`](public/pong) | Playable |
-| ??? | | Coming soon |
+| Game | Path | Two-phone twist |
+|------|------|-----------------|
+| **PONG** (1972) | [`/pong/`](public/pong) | The ball crosses between screens. 1-3 balls, SHRINK & GHOST modes |
+| **BRICKS** | [`/bricks/`](public/bricks) | Pong meets Breakout: every brick of yours smashed is a rival point |
+| **SNAKE** (1976) | [`/snake/`](public/snake) | Every apple you eat drops a wall block into the rival's arena |
+| **BREAKOUT** (1976) | [`/breakout/`](public/breakout) | Same wall on both phones: fastest demolition wins |
+| **INVADERS** (1978) | [`/invaders/`](public/invaders) | Clear a row and it lands on top of the rival's formation |
+| **MISSILES** (1980) | [`/missiles/`](public/missiles) | Every third intercept launches a missile at the rival |
+| **FROGGER** (1981) | [`/frogger/`](public/frogger) | Crossing race against the clock |
+| **TETRIS** (1984) | [`/tetris/`](public/tetris) | Multi-line clears send garbage rows to the rival |
+
+All matches share the same flow: pick options, share a link, timed match
+(1-4 min) with the countdown between the scores, everything turns red
+under 30 seconds, and the match ends with confetti for the winner and a
+pixel sad face for the loser.
 
 ## How multiplayer works
 
@@ -32,7 +43,12 @@ phone 1  ──WebSocket──►  server (relay + rooms)  ◄──WebSocket─
 ```
 
 - `public/index.html` — the portal: the list of games.
-- `public/<game>/` — each game: HTML5 canvas with touch controls.
+- `public/arcade.js` — the shared client engine: rooms, link invites,
+  resume after any disconnect, match clock (host is the referee), pause
+  while a player is away, score sync, retro frame and end scenes. A game
+  registers with `Arcade.register({...})` and only implements physics,
+  drawing, input and its own messages.
+- `public/<game>/` — each game: an HTML page plus a small `game.js` module.
 - `public/style.css` — shared retro stylesheet (1972 CRT look).
 - `lib/rooms.js` — room, relay and resume logic. **Game-agnostic**: it
   pairs two phones and relays opaque messages, so every game uses it.

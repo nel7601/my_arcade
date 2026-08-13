@@ -260,3 +260,25 @@ html, body {
 body.portal {
   overflow: auto;
 }
+
+/* Wide option buttons (text labels) and smaller game titles */
+.opt-btn.wide {
+  width: auto;
+  padding: 0 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  height: 42px;
+}
+
+.game-title {
+  font-size: 44px;
+  letter-spacing: 8px;
+}
+
+.back-link {
+  color: #666;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-decoration: none;
+  margin-top: 10px;
+}
