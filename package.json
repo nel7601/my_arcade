@@ -1,0 +1,17 @@
+{
+  "name": "my-arcade",
+  "version": "1.0.0",
+  "description": "A page of classic-game variants for two phones connected over the internet",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.1.0",
+    "ws": "^8.18.0"
+  }
+}

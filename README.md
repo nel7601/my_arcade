@@ -1,2 +1,75 @@
-# my_arcade
-This report hosts a bunch of old faction games
+# MY ARCADE
+
+A page of classic-game variants, built for **two phones connected over the
+internet**. Very simple, very old fashioned: black, white and *beeps*.
+
+Games live side by side in this single repository and share one server,
+one deploy and one look.
+
+## Games
+
+| Game | Path | Status |
+|------|------|--------|
+| **PONG** (1972) | [`/pong/`](public/pong) | Playable |
+| ??? | | Coming soon |
+
+## How multiplayer works
+
+- Each player opens a game in their **phone's browser** (nothing to install).
+- One player configures the match (time, balls...), taps **CREATE GAME**
+  and gets a **link to share** (WhatsApp, SMS, whatever).
+- The other player simply **opens the link** and the match starts. Players
+  can be on **different networks anywhere in the world**: both phones
+  connect to the server over WebSocket and it pairs them up.
+- If a phone leaves the browser for any reason the game **pauses** and the
+  seat is held for **10 minutes**; the session, the score and the match
+  resume automatically when the player comes back.
+
+## Architecture
+
+```
+phone 1  ──WebSocket──►  server (relay + rooms)  ◄──WebSocket──  phone 2
+```
+
+- `public/index.html` — the portal: the list of games.
+- `public/<game>/` — each game: HTML5 canvas with touch controls.
+- `public/style.css` — shared retro stylesheet (1972 CRT look).
+- `lib/rooms.js` — room, relay and resume logic. **Game-agnostic**: it
+  pairs two phones and relays opaque messages, so every game uses it.
+- `api/ws.js` — the relay as a Vercel function (native WebSockets).
+- `server.js` — the same thing for local play or a VPS.
+- Game physics run only on the phones; the server never simulates.
+
+## Run locally
+
+```bash
+npm install
+npm start
+# open http://localhost:3000 in two tabs or two devices on the same network
+```
+
+## Deploy on Vercel
+
+1. Go to [vercel.com](https://vercel.com), **Add New… → Project** and import
+   this repository.
+2. Change nothing (framework "Other", no build command) and hit **Deploy**.
+3. Share `https://your-project.vercel.app` — the portal — with your players.
+
+Notes on Vercel's WebSocket beta (public beta since June 2026, on Fluid
+compute):
+
+- **Fluid compute must be on** (default for new projects).
+- A connection lasts at most `maxDuration` (300 s on the Hobby plan, set in
+  `vercel.json`); after a drop the clients reconnect and resume by themselves.
+- Rooms live in the instance's memory. If both players vanish for several
+  minutes the room may be lost (rare with low traffic): create a new game.
+
+## Adding a new game
+
+1. Create `public/<game>/` with its `index.html` and code; link the shared
+   `../style.css` for the retro look.
+2. Use the same WebSocket protocol against `/api/ws`: `create` / `join` /
+   `resume` / `leave`, plus your own opaque game messages relayed to the
+   rival (see `public/pong/game.js` for a complete example with pause,
+   resume and clock sync).
+3. Add a card for it in `public/index.html`.

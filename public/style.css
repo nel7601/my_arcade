@@ -1,0 +1,262 @@
+/* OLD PING PONG - 1972 CRT look: black, white and nothing else */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: "Courier New", Courier, monospace;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  background: #000;
+}
+
+/* In-game quit button: top-right corner, needs a confirming second tap */
+.quit {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  right: 10px;
+  z-index: 5;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 2px;
+  background: #000;
+  color: #fff;
+  border: 2px solid #fff;
+  padding: 7px 10px;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+.quit.confirm {
+  background: #fff;
+  color: #000;
+  opacity: 1;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #000;
+  padding: 24px;
+  text-align: center;
+  z-index: 10;
+}
+
+.hidden {
+  display: none;
+}
+
+/* End-of-match mode: the canvas shows the result (confetti / sad face),
+   the overlay only contributes the buttons at the bottom */
+.screen.result {
+  background: transparent;
+  justify-content: flex-end;
+  padding-bottom: 7vh;
+}
+
+.title {
+  font-size: 64px;
+  letter-spacing: 12px;
+  font-weight: bold;
+}
+
+.small-title {
+  font-size: 36px;
+  letter-spacing: 8px;
+}
+
+.subtitle, .label, .hint {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #aaa;
+  line-height: 1.8;
+}
+
+.link {
+  font-size: 14px;
+  letter-spacing: 1px;
+  word-break: break-all;
+  border: 2px solid #fff;
+  padding: 12px;
+  max-width: 90vw;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 18px;
+  letter-spacing: 3px;
+  background: #000;
+  color: #fff;
+  border: 3px solid #fff;
+  padding: 14px 28px;
+  cursor: pointer;
+}
+
+.btn:active {
+  background: #fff;
+  color: #000;
+}
+
+.btn.small {
+  font-size: 13px;
+  padding: 8px 16px;
+  border-width: 2px;
+}
+
+.join-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* Match option selectors (time / balls) */
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opt-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #aaa;
+  width: 64px;
+  text-align: right;
+}
+
+.opt-unit {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #aaa;
+  width: 34px;
+  text-align: left;
+}
+
+.opt-btn {
+  font-family: inherit;
+  font-size: 16px;
+  width: 42px;
+  height: 42px;
+  background: #000;
+  color: #fff;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.opt-btn.sel {
+  background: #fff;
+  color: #000;
+}
+
+#code-input {
+  font-family: inherit;
+  font-size: 18px;
+  letter-spacing: 4px;
+  width: 130px;
+  background: #000;
+  color: #fff;
+  border: 3px solid #fff;
+  padding: 14px 10px;
+  text-align: center;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+
+#code-input::placeholder {
+  color: #555;
+}
+
+.error {
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 2px;
+  min-height: 18px;
+}
+
+.blink {
+  font-size: 15px;
+  letter-spacing: 3px;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ---- Portal (game list) ---- */
+
+.portal-screen {
+  position: static;
+  min-height: 100dvh;
+}
+
+.game-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(340px, 86vw);
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 3px solid #fff;
+  padding: 18px 20px;
+  color: #fff;
+  text-decoration: none;
+  text-align: left;
+}
+
+.game-card:active {
+  background: #fff;
+  color: #000;
+}
+
+.game-card.soon {
+  opacity: 0.35;
+  border-style: dashed;
+}
+
+.game-name {
+  font-size: 26px;
+  letter-spacing: 6px;
+  font-weight: bold;
+}
+
+.game-desc {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.game-go {
+  font-size: 13px;
+  letter-spacing: 3px;
+  margin-top: 6px;
+}
+
+body.portal {
+  overflow: auto;
+}
