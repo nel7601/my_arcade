@@ -47,9 +47,17 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
   if (req.method === 'POST' && urlPath === '/api/admin') {
-    const result = await handleAdmin(await readBody(req));
-    res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(JSON.stringify(result.body));
+    try {
+      const result = await handleAdmin(await readBody(req));
+      res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify(result.body));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({
+        error: 'server_error',
+        detail: String((err && err.message) || err).slice(0, 300)
+      }));
+    }
   }
 
   let filePath = path.join(PUBLIC_DIR, urlPath);
