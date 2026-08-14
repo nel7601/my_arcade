@@ -27,9 +27,10 @@
     el('panel').classList.toggle('hidden', !panel);
   }
 
-  function renderStats(stats, persistent) {
-    el('storage-note').textContent = persistent
-      ? 'STORAGE: PERSISTENT (REDIS)'
+  function renderStats(stats, persistent, backend) {
+    el('storage-note').textContent =
+      backend === 'postgres' ? 'STORAGE: PERSISTENT (POSTGRES / NEON)'
+      : backend === 'redis' ? 'STORAGE: PERSISTENT (REDIS)'
       : 'STORAGE: IN-MEMORY — COUNTERS RESET WHEN THE SERVER RECYCLES';
 
     const v = (k) => stats[k] || 0;
@@ -60,7 +61,7 @@
       show(false);
       return;
     }
-    renderStats(r.body.stats, r.body.persistent);
+    renderStats(r.body.stats, r.body.persistent, r.body.backend);
     show(true);
   }
 

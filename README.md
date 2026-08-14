@@ -63,14 +63,19 @@ games created, games played) and to change the admin credentials.
 Default login is `admin` / `admin` — **change it right after the first
 deploy**, from the panel itself.
 
-Stats, credentials and sessions live in the storage layer (`lib/store.js`):
+Stats, credentials and sessions live in the storage layer (`lib/store.js`),
+which picks its backend automatically:
 
-- With an **Upstash Redis** integration linked to the Vercel project
-  (Marketplace → Upstash → link project; the `KV_REST_API_URL/TOKEN` env
-  vars appear automatically) everything is **persistent**. Recommended.
-- Without it, storage is in-memory: fine locally, but on Vercel the
-  counters and any changed password reset whenever the function instance
-  is recycled (the panel shows which mode is active).
+1. **Postgres / Neon** (recommended): set a `DATABASE_URL` env var in the
+   Vercel project with a Neon connection string. Uses Neon's serverless
+   HTTP driver; the `arcade_kv` table is created automatically on first
+   use. Persistent.
+2. **Upstash Redis**: detected via `KV_REST_API_URL/TOKEN` (or
+   `UPSTASH_REDIS_REST_URL/TOKEN`). Persistent.
+3. **In-memory** fallback: fine locally, but on Vercel the counters and
+   any changed password reset whenever the function instance is recycled.
+
+The panel header shows which mode is active.
 
 ## Run locally
 
