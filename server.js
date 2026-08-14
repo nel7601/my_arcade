@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { handleConnection } from './lib/rooms.js';
+import { handleAdmin, trackVisit } from './lib/admin.js';
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
@@ -26,8 +27,31 @@ const MIME = {
   '.json': 'application/json; charset=utf-8'
 };
 
-const server = http.createServer((req, res) => {
+function readBody(req) {
+  return new Promise((resolve) => {
+    let data = '';
+    req.on('data', (c) => { data += c; if (data.length > 10000) req.destroy(); });
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)); } catch { resolve({}); }
+    });
+  });
+}
+
+const server = http.createServer(async (req, res) => {
   const urlPath = decodeURIComponent(req.url.split('?')[0]);
+
+  // Same API endpoints the Vercel functions provide
+  if (req.method === 'POST' && urlPath === '/api/track') {
+    try { await trackVisit((await readBody(req)).page); } catch { /* ignore */ }
+    res.writeHead(204);
+    return res.end();
+  }
+  if (req.method === 'POST' && urlPath === '/api/admin') {
+    const result = await handleAdmin(await readBody(req));
+    res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
+    return res.end(JSON.stringify(result.body));
+  }
+
   let filePath = path.join(PUBLIC_DIR, urlPath);
 
   // Never serve anything outside public/

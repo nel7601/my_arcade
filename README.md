@@ -56,6 +56,22 @@ phone 1  ──WebSocket──►  server (relay + rooms)  ◄──WebSocket─
 - `server.js` — the same thing for local play or a VPS.
 - Game physics run only on the phones; the server never simulates.
 
+## Back office
+
+`/admin/` is the back office: log in to see per-game stats (page visits,
+games created, games played) and to change the admin credentials.
+Default login is `admin` / `admin` — **change it right after the first
+deploy**, from the panel itself.
+
+Stats, credentials and sessions live in the storage layer (`lib/store.js`):
+
+- With an **Upstash Redis** integration linked to the Vercel project
+  (Marketplace → Upstash → link project; the `KV_REST_API_URL/TOKEN` env
+  vars appear automatically) everything is **persistent**. Recommended.
+- Without it, storage is in-memory: fine locally, but on Vercel the
+  counters and any changed password reset whenever the function instance
+  is recycled (the panel shows which mode is active).
+
 ## Run locally
 
 ```bash

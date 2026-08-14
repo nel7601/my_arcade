@@ -780,6 +780,13 @@ window.Arcade = (() => {
     window.addEventListener('resize', resize);
     resize();
 
+    // Count the page view for the back-office stats (fire-and-forget)
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: GAME.game })
+    }).catch(() => {});
+
     const joinCode = new URLSearchParams(location.search).get('j');
     const savedSession = loadSession();
     if (joinCode) {

@@ -60,5 +60,13 @@
 
     <p class="hint">Pick a game, create a match and share the link<br>with your rival, wherever they are.</p>
   </main>
+  <script>
+    // Count the page view for the back-office stats (fire-and-forget)
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page: 'portal' })
+    }).catch(() => {});
+  </script>
 </body>
 </html>
