@@ -13,13 +13,25 @@
   let token = localStorage.getItem(TOKEN_KEY) || null;
 
   async function api(action, extra = {}) {
-    const res = await fetch('/api/admin', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action, token, ...extra })
-    });
-    const body = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, body };
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, token, ...extra }),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
+      });
+      const body = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, body };
+    } catch (err) {
+      // Network failure or timeout: surface it instead of doing nothing
+      return { ok: false, status: 0, body: { error: 'network', detail: String(err).slice(0, 120) } };
+    }
+  }
+
+  function describeError(r) {
+    if (r.status === 0) return 'NO RESPONSE FROM SERVER: ' + (r.body.detail || 'timeout');
+    if (r.body && r.body.detail) return 'SERVER ERROR: ' + r.body.detail;
+    return 'SERVER ERROR (' + r.status + ')';
   }
 
   function show(panel) {
@@ -55,9 +67,13 @@
   async function loadStats() {
     const r = await api('stats');
     if (!r.ok) {
-      // Session expired (or the in-memory store recycled): back to login
-      token = null;
-      localStorage.removeItem(TOKEN_KEY);
+      if (r.status === 401) {
+        // Session expired (or the in-memory store recycled): back to login
+        token = null;
+        localStorage.removeItem(TOKEN_KEY);
+      } else {
+        el('login-error').textContent = describeError(r);
+      }
       show(false);
       return;
     }
@@ -66,13 +82,19 @@
   }
 
   el('btn-login').addEventListener('click', async () => {
+    const btn = el('btn-login');
+    btn.disabled = true;
+    btn.textContent = 'CHECKING...';
     el('login-error').textContent = '';
     const r = await api('login', {
       user: el('login-user').value.trim(),
       pass: el('login-pass').value
     });
+    btn.disabled = false;
+    btn.textContent = 'ENTER';
     if (!r.ok) {
-      el('login-error').textContent = 'WRONG USER OR PASSWORD';
+      el('login-error').textContent =
+        r.status === 401 ? 'WRONG USER OR PASSWORD' : describeError(r);
       return;
     }
     token = r.body.token;
