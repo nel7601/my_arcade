@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>BACK OFFICE - MY ARCADE</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body class="portal">
+  <!-- Login -->
+  <main id="login" class="screen portal-screen">
+    <h1 class="title small-title">BACK OFFICE</h1>
+    <p class="subtitle">MY ARCADE &middot; ADMIN ONLY</p>
+    <input id="login-user" class="input" type="text" placeholder="USER" autocomplete="username">
+    <input id="login-pass" class="input" type="password" placeholder="PASSWORD" autocomplete="current-password">
+    <button id="btn-login" class="btn">ENTER</button>
+    <p id="login-error" class="error"></p>
+    <a class="back-link" href="../">&#9664; MY ARCADE</a>
+  </main>
+
+  <!-- Panel -->
+  <main id="panel" class="screen portal-screen hidden">
+    <h1 class="title small-title">STATS</h1>
+    <p id="storage-note" class="subtitle"></p>
+    <p id="default-warning" class="error"></p>
+
+    <div class="admin-block">
+      <table class="admin-table" id="stats-table"></table>
+    </div>
+
+    <div class="admin-actions">
+      <button id="btn-refresh" class="btn small">REFRESH</button>
+      <button id="btn-logout" class="btn small">LOGOUT</button>
+    </div>
+
+    <div class="admin-block">
+      <p class="label">CHANGE CREDENTIALS</p>
+      <input id="cred-current" class="input" type="password" placeholder="CURRENT PASSWORD" autocomplete="current-password">
+      <input id="cred-user" class="input" type="text" placeholder="NEW USER (OPTIONAL)" autocomplete="username">
+      <input id="cred-pass" class="input" type="password" placeholder="NEW PASSWORD" autocomplete="new-password">
+      <button id="btn-save-creds" class="btn small">SAVE</button>
+      <p id="cred-msg" class="error"></p>
+    </div>
+
+    <a class="back-link" href="../">&#9664; MY ARCADE</a>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>
