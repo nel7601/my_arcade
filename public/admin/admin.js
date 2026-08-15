@@ -5,12 +5,31 @@
 
 'use strict';
 
+// Any load-time error must be visible on screen, never a dead button
+window.addEventListener('error', (e) => {
+  const box = document.getElementById('login-error');
+  if (box) box.textContent = 'PAGE ERROR: ' + (e.message || 'unknown');
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const box = document.getElementById('login-error');
+  if (box) box.textContent = 'PAGE ERROR: ' + String(e.reason).slice(0, 150);
+});
+
 (() => {
   const GAMES = ['pong', 'bricks', 'snake', 'breakout', 'invaders', 'missiles', 'frogger', 'tetris'];
   const el = (id) => document.getElementById(id);
   const TOKEN_KEY = 'arcade_admin_token';
 
-  let token = localStorage.getItem(TOKEN_KEY) || null;
+  // Storage can be blocked by privacy settings (strict incognito, Brave,
+  // "block all cookies"...): never let that kill the page — the session
+  // just won't survive a reload.
+  const storage = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+    del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
+  };
+
+  let token = storage.get(TOKEN_KEY) || null;
 
   async function api(action, extra = {}) {
     try {
@@ -70,7 +89,7 @@
       if (r.status === 401) {
         // Session expired (or the in-memory store recycled): back to login
         token = null;
-        localStorage.removeItem(TOKEN_KEY);
+        storage.del(TOKEN_KEY);
       } else {
         el('login-error').textContent = describeError(r);
       }
@@ -98,7 +117,7 @@
       return;
     }
     token = r.body.token;
-    localStorage.setItem(TOKEN_KEY, token);
+    storage.set(TOKEN_KEY, token);
     el('default-warning').textContent = r.body.defaultCreds
       ? 'YOU ARE USING THE DEFAULT admin/admin — CHANGE IT BELOW'
       : '';
@@ -114,7 +133,7 @@
   el('btn-logout').addEventListener('click', async () => {
     await api('logout').catch(() => {});
     token = null;
-    localStorage.removeItem(TOKEN_KEY);
+    storage.del(TOKEN_KEY);
     show(false);
   });
 
