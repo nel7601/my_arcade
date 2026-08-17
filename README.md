@@ -18,7 +18,7 @@ one deploy and one look.
 | **MISSILES** (1980) | [`/missiles/`](public/missiles) | Every third intercept launches a missile at the rival |
 | **FROGGER** (1981) | [`/frogger/`](public/frogger) | Crossing race against the clock |
 | **TETRIS** (1984) | [`/tetris/`](public/tetris) | Multi-line clears send garbage rows to the rival |
-| **MINES** | [`/mines/`](public/mines) | Turn-based minesweeper duel: 10s turns, flag mines to capture them |
+| **MINES** | [`/mines/`](public/mines) | Minesweeper race on separate boards: a mine resets yours, first clear wins |
 | **FLAPPY** (2013) | [`/flappy/`](public/flappy) | Best of 5: both fly the same pipe course, furthest flight wins the round |
 
 All matches share the same flow: pick options, share a link, timed match
