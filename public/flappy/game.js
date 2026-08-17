@@ -53,6 +53,7 @@
   let birdY = 0.5, birdVy = 0;
   let myPipes = 0, rivalPipes = 0;
   let myDead = false, rivalDead = false, rivalFinal = false;
+  let roundSecured = false; // the rival crashed and I already flew further
   let botCooldown = 0;
 
   // Menu selector
@@ -86,6 +87,7 @@
     myDead = false;
     rivalDead = false;
     rivalFinal = false;
+    roundSecured = false;
     phase = 'countdown';
     phaseT = COUNTDOWN;
   }
@@ -208,6 +210,12 @@
       }
     },
 
+    // Round already secured: the survivor's whole screen turns green
+    frameColor(base) {
+      if (phase === 'flying' && !myDead && roundSecured) return '#37e05a';
+      return base;
+    },
+
     step(dt, now) {
       if (phase === 'countdown') {
         phaseT -= dt;
@@ -237,6 +245,14 @@
       }
 
       if (phase !== 'flying' || myDead) return;
+
+      // The rival is down and we already flew further: this round is OURS.
+      // The whole screen turns green (see frameColor) to celebrate it.
+      if (!roundSecured && rivalFinal && myPipes > rivalPipes) {
+        roundSecured = true;
+        A.flash('ROUND IS YOURS!');
+        A.sndScore();
+      }
 
       // Autopilot (?bot=N): aim for the next gap until N pipes, then dive
       if (BOT_PIPES > 0) {
