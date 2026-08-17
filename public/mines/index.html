@@ -21,10 +21,20 @@
     <h1 class="title game-title">MINES</h1>
     <p class="subtitle">MINE RACE &middot; OWN BOARDS &middot; FIRST CLEAR WINS</p>
     <div class="opt-row">
+      <span class="opt-label">SIZE</span>
+      <button class="opt-btn sel" data-size="10">10</button>
+      <button class="opt-btn" data-size="15">15</button>
+      <button class="opt-btn" data-size="20">20</button>
+      <button class="opt-btn" data-size="30">30</button>
+      <button class="opt-btn" data-size="50">50</button>
+      <button class="opt-btn" data-size="99">99</button>
+    </div>
+    <p id="size-warning" class="error hidden">WARNING: OVER 15, CELLS GET TOO<br>SMALL FOR A PHONE SCREEN</p>
+    <div class="opt-row">
       <span class="opt-label">MINES</span>
-      <button class="opt-btn" data-mines="12">12</button>
-      <button class="opt-btn sel" data-mines="20">20</button>
-      <button class="opt-btn" data-mines="30">30</button>
+      <button class="opt-btn" data-mines="12">LOW</button>
+      <button class="opt-btn sel" data-mines="20">MID</button>
+      <button class="opt-btn" data-mines="30">HIGH</button>
       <span class="opt-unit"></span>
     </div>
     <div class="opt-row">
