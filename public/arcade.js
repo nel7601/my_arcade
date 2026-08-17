@@ -671,32 +671,38 @@ window.Arcade = (() => {
     ];
   }
 
-  function firePointer(phase, clientX, clientY) {
+  // `button` is 'touch' for fingers, 'left'/'right' for mouse buttons —
+  // games like MINES map them to different actions
+  function firePointer(phase, clientX, clientY, button) {
     // Unlock audio on the first gesture (needed when arriving via link)
     if (!audioCtx) beep(0.01, 0.01);
     else if (audioCtx.state === 'suspended') audioCtx.resume();
     if (GAME.onPointer) {
       const [u, v] = toCourt(clientX, clientY);
-      GAME.onPointer(phase, u, v);
+      GAME.onPointer(phase, u, v, button || 'left');
     }
   }
 
   canvas.addEventListener('touchstart', (ev) => {
     ev.preventDefault();
-    firePointer('down', ev.touches[0].clientX, ev.touches[0].clientY);
+    firePointer('down', ev.touches[0].clientX, ev.touches[0].clientY, 'touch');
   }, { passive: false });
   canvas.addEventListener('touchmove', (ev) => {
     ev.preventDefault();
-    firePointer('move', ev.touches[0].clientX, ev.touches[0].clientY);
+    firePointer('move', ev.touches[0].clientX, ev.touches[0].clientY, 'touch');
   }, { passive: false });
   canvas.addEventListener('touchend', (ev) => {
     ev.preventDefault();
     const t = ev.changedTouches[0];
-    firePointer('up', t.clientX, t.clientY);
+    firePointer('up', t.clientX, t.clientY, 'touch');
   }, { passive: false });
-  canvas.addEventListener('mousedown', (ev) => firePointer('down', ev.clientX, ev.clientY));
+  canvas.addEventListener('mousedown', (ev) =>
+    firePointer('down', ev.clientX, ev.clientY, ev.button === 2 ? 'right' : 'left'));
   canvas.addEventListener('mousemove', (ev) => { if (ev.buttons) firePointer('move', ev.clientX, ev.clientY); });
-  canvas.addEventListener('mouseup', (ev) => firePointer('up', ev.clientX, ev.clientY));
+  canvas.addEventListener('mouseup', (ev) =>
+    firePointer('up', ev.clientX, ev.clientY, ev.button === 2 ? 'right' : 'left'));
+  // Right-click is a game action (e.g. flagging a mine), never a context menu
+  canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
   async function keepAwake() {
     try {

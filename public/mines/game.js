@@ -24,10 +24,7 @@
   const X0 = (1 - COLS * CELL) / 2;
   const Y0 = 0.1;                 // header strip above the board
   const TURN_SECONDS = 10;
-
-  // Header hit areas (court coordinates)
-  const BTN_DIG = { x1: 0.40, x2: 0.66, y1: 0.005, y2: 0.085 };
-  const BTN_FLAG = { x1: 0.70, x2: 0.99, y1: 0.005, y2: 0.085 };
+  const HOLD_MS = 450;            // press-and-hold this long to flag
 
   // Cell states
   const COVERED = 0, REVEALED = 1, MINE_ME = 2, MINE_RIVAL = 3, EXPLODED = 4;
@@ -40,7 +37,7 @@
   let resolved = 0;               // captured + exploded mines
   let myTurn = false;
   let turnLeft = TURN_SECONDS;
-  let mode = 'dig';
+  let hold = null; // pending press: {c, r, x, y, t0, timer} — becomes a flag if held
 
   const key = (c, r) => c + ',' + r;
 
@@ -140,6 +137,25 @@
     turnLeft = TURN_SECONDS;
   }
 
+  // A move made by ME (dig or flag), sent to the rival and applied locally
+  function makeMove(action, c, r) {
+    A.send({ type: 'move', action, c, r });
+    applyMove(action, c, r, true);
+    if (action === 'flag') {
+      try { navigator.vibrate && navigator.vibrate(30); } catch { /* optional */ }
+    }
+  }
+
+  function canAct(c, r) {
+    return A.state.phase === 'playing' && boardReady && myTurn &&
+      c >= 0 && c < COLS && r >= 0 && r < ROWS && cell[r][c] === COVERED;
+  }
+
+  function cancelHold() {
+    if (hold) clearTimeout(hold.timer);
+    hold = null;
+  }
+
   // Compact board serialization for reload recovery
   function packCells() {
     let s = '';
@@ -173,7 +189,7 @@
     onStart(cfg) {
       blankBoard();
       boardReady = false;
-      mode = 'dig';
+      cancelHold();
       turnLeft = TURN_SECONDS;
       myTurn = A.state.role === 'host'; // host moves first
       if (A.state.role === 'host') {
@@ -231,23 +247,45 @@
       }
     },
 
-    onPointer(phase, x, y) {
-      if (phase !== 'down' || A.state.phase !== 'playing') return;
-
-      // Mode toggle buttons in the header
-      if (y >= BTN_DIG.y1 && y <= BTN_DIG.y2) {
-        if (x >= BTN_DIG.x1 && x <= BTN_DIG.x2) { mode = 'dig'; A.beep(660, 0.03); return; }
-        if (x >= BTN_FLAG.x1 && x <= BTN_FLAG.x2) { mode = 'flag'; A.beep(660, 0.03); return; }
-      }
-
-      if (!boardReady || !myTurn) return;
+    // Input: tap / left-click = DIG · press-and-hold / right-click = FLAG
+    onPointer(phase, x, y, button) {
       const c = Math.floor((x - X0) / CELL);
       const r = Math.floor((y - Y0) / CELL);
-      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
-      if (cell[r][c] !== COVERED) return;
 
-      A.send({ type: 'move', action: mode, c, r });
-      applyMove(mode, c, r, true);
+      if (phase === 'down') {
+        cancelHold();
+        if (!canAct(c, r)) return;
+
+        if (button === 'right') {
+          makeMove('flag', c, r); // desktop shortcut: right-click flags
+          return;
+        }
+
+        // Touch or left button: wait to see if it's a tap or a hold
+        hold = {
+          c, r, x, y,
+          t0: performance.now(),
+          timer: setTimeout(() => {
+            const h = hold;
+            hold = null;
+            if (h && canAct(h.c, h.r)) makeMove('flag', h.c, h.r);
+          }, HOLD_MS)
+        };
+        return;
+      }
+
+      if (phase === 'move') {
+        // A drag is neither a tap nor a hold
+        if (hold && Math.hypot(x - hold.x, y - hold.y) > 0.035) cancelHold();
+        return;
+      }
+
+      // phase === 'up': released before the hold fired -> it's a DIG
+      if (hold) {
+        const h = hold;
+        cancelHold();
+        if (canAct(h.c, h.r)) makeMove('dig', h.c, h.r);
+      }
     },
 
     step(dt) {
@@ -269,7 +307,7 @@
     },
 
     draw(now, color) {
-      // ---- Header: turn indicator + mode toggle
+      // ---- Header: turn indicator, mines left and the input legend
       ctx.textAlign = 'left';
       ctx.font = `bold ${Math.round(S(0.038))}px "Courier New", monospace`;
       if (boardReady) {
@@ -279,25 +317,24 @@
           ctx.fillText(myTurn ? `YOU ${secs}` : `RIVAL ${secs}`, X(0.02), Y(0.055));
         }
         ctx.font = `${Math.round(S(0.026))}px "Courier New", monospace`;
-        ctx.fillText(`${minesTotal - resolved}*`, X(0.30), Y(0.055));
+        ctx.fillText(`${minesTotal - resolved}*`, X(0.32), Y(0.055));
       }
+      ctx.textAlign = 'right';
+      ctx.font = `${Math.round(S(0.024))}px "Courier New", monospace`;
+      ctx.globalAlpha = 0.75;
+      ctx.fillText('TAP = DIG', X(0.98), Y(0.032));
+      ctx.fillText('HOLD = FLAG', X(0.98), Y(0.068));
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
 
-      for (const [btn, label, m] of [[BTN_DIG, 'DIG', 'dig'], [BTN_FLAG, 'FLAG', 'flag']]) {
-        const active = mode === m;
-        if (active) {
-          ctx.fillRect(X(btn.x1), Y(btn.y1), S(btn.x2 - btn.x1), S(btn.y2 - btn.y1));
-          ctx.fillStyle = '#000';
-        } else {
-          ctx.fillRect(X(btn.x1), Y(btn.y1), S(btn.x2 - btn.x1), S(0.006));
-          ctx.fillRect(X(btn.x1), Y(btn.y2), S(btn.x2 - btn.x1), S(0.006));
-          ctx.fillRect(X(btn.x1), Y(btn.y1), S(0.006), S(btn.y2 - btn.y1));
-          ctx.fillRect(X(btn.x2), Y(btn.y1), S(0.006), S(btn.y2 - btn.y1 + 0.006));
-        }
-        ctx.font = `bold ${Math.round(S(0.034))}px "Courier New", monospace`;
-        ctx.textAlign = 'center';
-        ctx.fillText(label, X((btn.x1 + btn.x2) / 2), Y(btn.y2 - 0.025));
-        ctx.fillStyle = color;
-        ctx.textAlign = 'left';
+      // Hold-to-flag progress: a square growing over the pressed cell
+      if (hold) {
+        const progress = Math.min(1, (now - hold.t0) / HOLD_MS);
+        const size = CELL * 0.95 * progress;
+        const cx0 = X0 + (hold.c + 0.5) * CELL, cy0 = Y0 + (hold.r + 0.5) * CELL;
+        ctx.globalAlpha = 0.7;
+        ctx.fillRect(X(cx0 - size / 2), Y(cy0 - size / 2), S(size), S(size));
+        ctx.globalAlpha = 1;
       }
 
       // ---- Board
@@ -347,13 +384,14 @@
 
     status() {
       if (!boardReady) return 'WAITING FOR BOARD...';
-      return myTurn ? 'YOUR TURN: DIG OR FLAG' : null;
+      return myTurn ? 'TAP TO DIG · HOLD TO FLAG' : null;
     }
   });
 
   // Exposed for automated tests; not part of the game logic
   A.state.msDebug = () => ({
-    boardReady, myTurn, mode, resolved, minesTotal,
+    boardReady, myTurn, resolved, minesTotal,
+    holding: Boolean(hold),
     mines: [...mines],
     turnLeft
   });
