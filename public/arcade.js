@@ -29,7 +29,6 @@ window.Arcade = (() => {
   // ?t=SECONDS overrides the match length — handy for testing
   const TEST_SECONDS = Number(new URLSearchParams(location.search).get('t')) || 0;
   const URGENT_AT = 30;
-  const URGENT_COLOR = '#ff2222';
   const CONFETTI_COLORS = ['#ff4040', '#ffd700', '#40c4ff', '#7cfc00', '#ff80ff', '#ffa500'];
 
   let GAME = null; // the registered game definition
@@ -596,8 +595,18 @@ window.Arcade = (() => {
     const ended = state.phase === 'over' && state.result;
     if (!active && !ended) return;
 
-    const urgent = active && state.timeLeft !== null && state.timeLeft < URGENT_AT;
-    const color = urgent ? URGENT_COLOR : '#fff';
+    // Low-time urgency: fade smoothly from white to red over 10 seconds
+    // (full red from 20s left), instead of an instant switch at 30s
+    let color = '#fff';
+    if (active && state.timeLeft !== null && state.timeLeft < URGENT_AT) {
+      const u = Math.min(1, (URGENT_AT - state.timeLeft) / 10);
+      const gb = Math.round(255 - 221 * u); // 255 -> 34, toward #ff2222
+      color = `rgb(255,${gb},${gb})`;
+    }
+    // Games can override the frame color (e.g. FLAPPY's round-won green)
+    if (active && GAME.frameColor) {
+      color = GAME.frameColor(color) || color;
+    }
     ctx.fillStyle = color;
 
     // Side walls + the dashed boundary of the info zone
