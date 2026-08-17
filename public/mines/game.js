@@ -7,10 +7,10 @@
  * Digging a mine BLOWS UP your board and deals you a fresh one; you
  * keep trying until someone clears their board first.
  *
- * Board sizes go from 10 to 99 columns (rows follow the screen shape);
- * the menu warns when cells get too small for a phone. Mine count
- * scales with the board area to keep the chosen density. The board is
- * rendered into a cached layer so even a 99-wide board stays smooth.
+ * The three classic Minesweeper levels: 9x9 with 10 mines, 16x16 with
+ * 40, and 30x16 with 99 (the menu warns that expert cells are tiny on
+ * a phone). The board renders into a cached layer so even the expert
+ * board stays smooth.
  *
  * Input: tap / left-click = DIG · press-and-hold / right-click = FLAG.
  * The first dig of every board is always safe.
@@ -28,12 +28,19 @@
   const BOARD_H = PLAY_H - Y0;    // vertical space for cells
   const HOLD_MS = 450;
   const BOOM_MS = 900;
-  const BASE_CELLS = 120;         // the 10-wide board the densities refer to
 
   const COVERED = 0, REVEALED = 1, FLAGGED = 2;
 
-  // Board geometry (set from the SIZE option)
-  let COLS = 10, ROWS = 12, CELL = 0.098, X0 = 0.01;
+  // The three classic Minesweeper levels: beginner / intermediate / expert
+  const LEVELS = [
+    { cols: 9, rows: 9, mines: 10 },
+    { cols: 16, rows: 16, mines: 40 },
+    { cols: 30, rows: 16, mines: 99 }
+  ];
+
+  // Board geometry (set from the LEVEL option); the board is centered
+  // in the play area since the classic shapes don't fill a phone screen
+  let COLS = 9, ROWS = 9, CELL = 0.98 / 9, X0 = 0.01, YB = 0.2;
 
   let mines = null;               // Set('c,r'), dealt on the first dig
   let minesTotal = 20;
@@ -50,43 +57,32 @@
 
   const key = (c, r) => c + ',' + r;
 
-  function setSize(colsWanted) {
-    COLS = Math.min(99, Math.max(8, Math.round(colsWanted) || 10));
-    CELL = 0.98 / COLS;
+  function setLevel(idx) {
+    const lv = LEVELS[Math.min(2, Math.max(0, Math.round(idx) || 0))];
+    COLS = lv.cols;
+    ROWS = lv.rows;
+    minesTotal = lv.mines;
+    // Fit the classic shape into the play area and center it
+    CELL = Math.min(0.98 / COLS, (BOARD_H - 0.004) / ROWS);
     X0 = (1 - COLS * CELL) / 2;
-    ROWS = Math.max(8, Math.floor((BOARD_H - 0.004) / CELL));
+    YB = Y0 + (BOARD_H - ROWS * CELL) / 2;
   }
 
-  // ---- Menu selectors -------------------------------------------------------
+  // ---- Menu selector --------------------------------------------------------
 
-  let optMines = 20; // density preset, scaled by area
-  let optSize = 10;
-  for (const btn of document.querySelectorAll('.opt-btn[data-mines]')) {
+  let optLevel = 0;
+  for (const btn of document.querySelectorAll('.opt-btn[data-level]')) {
     btn.addEventListener('click', () => {
-      optMines = Number(btn.dataset.mines);
-      for (const b of document.querySelectorAll('.opt-btn[data-mines]')) {
+      optLevel = Number(btn.dataset.level);
+      for (const b of document.querySelectorAll('.opt-btn[data-level]')) {
         b.classList.toggle('sel', b === btn);
       }
-    });
-  }
-  for (const btn of document.querySelectorAll('.opt-btn[data-size]')) {
-    btn.addEventListener('click', () => {
-      optSize = Number(btn.dataset.size);
-      for (const b of document.querySelectorAll('.opt-btn[data-size]')) {
-        b.classList.toggle('sel', b === btn);
-      }
-      // Warn when cells get too small for a finger
-      document.getElementById('size-warning').classList.toggle('hidden', optSize <= 15);
+      // Expert (30 wide) means ~13px cells on a phone: warn
+      document.getElementById('size-warning').classList.toggle('hidden', optLevel !== 2);
     });
   }
 
   // ---- Board ----------------------------------------------------------------
-
-  function scaledMines(base) {
-    const cells = COLS * ROWS;
-    const n = Math.round((base || 20) * cells / BASE_CELLS);
-    return Math.max(5, Math.min(Math.floor(cells / 3), n));
-  }
 
   function newBoard(keepAttempts) {
     mines = null; // dealt on first dig so that dig is always safe
@@ -261,13 +257,11 @@
     solo: true,
 
     getOpts() {
-      return { mines: optMines, size: optSize };
+      return { level: optLevel };
     },
 
     onStart(cfg) {
-      setSize(cfg.opts.size || 10);
-      minesTotal = 0; // computed below, after the size is known
-      minesTotal = scaledMines(cfg.opts.mines);
+      setLevel(cfg.opts.level || 0);
       finished = false;
       cancelHold();
       newBoard(false);
@@ -275,8 +269,7 @@
     },
 
     onResume(cfg) {
-      setSize(cfg.opts.size || 10);
-      minesTotal = scaledMines(cfg.opts.mines);
+      setLevel(cfg.opts.level || 0);
       finished = false;
       cancelHold();
       newBoard(false);
@@ -298,7 +291,7 @@
 
     onPointer(phase, x, y, button) {
       const c = Math.floor((x - X0) / CELL);
-      const r = Math.floor((y - Y0) / CELL);
+      const r = Math.floor((y - YB) / CELL);
 
       if (phase === 'down') {
         cancelHold();
@@ -360,13 +353,13 @@
         layerColorAt = now;
         repaintLayer(color);
       }
-      ctx.drawImage(layer, X(X0), Y(Y0));
+      ctx.drawImage(layer, X(X0), Y(YB));
 
       // Hold-to-flag progress square
       if (hold) {
         const progress = Math.min(1, (now - hold.t0) / HOLD_MS);
         const size = CELL * 0.95 * progress;
-        const cx0 = X0 + (hold.c + 0.5) * CELL, cy0 = Y0 + (hold.r + 0.5) * CELL;
+        const cx0 = X0 + (hold.c + 0.5) * CELL, cy0 = YB + (hold.r + 0.5) * CELL;
         ctx.globalAlpha = 0.7;
         ctx.fillRect(X(cx0 - size / 2), Y(cy0 - size / 2), S(size), S(size));
         ctx.globalAlpha = 1;
@@ -375,7 +368,7 @@
       // The mine you stepped on, over the layer during the boom freeze
       if (boomCell) {
         const cx = X(X0 + (boomCell.c + 0.5) * CELL);
-        const cy = Y(Y0 + (boomCell.r + 0.5) * CELL);
+        const cy = Y(YB + (boomCell.r + 0.5) * CELL);
         const rad = Math.max(3, S(CELL * 0.3));
         ctx.beginPath();
         ctx.arc(cx, cy, rad, 0, Math.PI * 2);
