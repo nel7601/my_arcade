@@ -41,6 +41,7 @@ window.Arcade = (() => {
   const state = {
     phase: 'menu',            // menu | joining | waiting | playing | over
     role: null,               // host | guest
+    solo: false,              // single-player: no room, no network, just you
     ws: null,
 
     code: null,
@@ -71,6 +72,7 @@ window.Arcade = (() => {
   const sessionKey = () => 'arcade_resume_' + (GAME ? GAME.game : '');
 
   function saveSession() {
+    if (state.solo) return; // nothing to resume without a room
     try {
       localStorage.setItem(sessionKey(),
         JSON.stringify({ code: state.code, token: state.token, ts: Date.now() }));
@@ -187,6 +189,7 @@ window.Arcade = (() => {
   }
 
   function sendMsg(msg) {
+    if (state.solo) return; // single-player: there is nobody to talk to
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify(msg));
     }
@@ -359,9 +362,11 @@ window.Arcade = (() => {
     clearSession();
     state.phase = 'over';
     state.timeLeft = 0;
-    const tie = state.score.me === state.score.opp;
-    const won = state.score.me > state.score.opp;
+    const solo = state.solo;
+    const tie = !solo && state.score.me === state.score.opp;
+    const won = solo ? state.score.me > 0 : state.score.me > state.score.opp;
     state.result = {
+      solo,
       won,
       tie,
       lastNow: performance.now(),
@@ -379,7 +384,7 @@ window.Arcade = (() => {
     if (GAME.onEnd) GAME.onEnd();
     el('over-title').textContent = '';
     el('over-detail').textContent = '';
-    el('btn-rematch').textContent = 'REMATCH';
+    el('btn-rematch').textContent = state.solo ? 'PLAY AGAIN' : 'REMATCH';
     el('over').classList.add('result');
     showScreen('over');
   }
@@ -416,6 +421,7 @@ window.Arcade = (() => {
       state.ws = null;
     }
     state.phase = 'menu';
+    state.solo = false;
     state.code = null;
     state.token = null;
     state.resuming = false;
@@ -534,6 +540,26 @@ window.Arcade = (() => {
     res.lastNow = now;
 
     ctx.textAlign = 'center';
+    if (res.solo) {
+      // Single player: your score is the whole story
+      if (res.confetti) {
+        for (const p of res.confetti) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.wobble += dt * 6;
+          if (p.y > PLAY_H) { p.y = -0.05; p.x = Math.random(); }
+          if (p.y < 0) continue;
+          ctx.fillStyle = p.color;
+          const w = p.size * (0.6 + 0.4 * Math.abs(Math.sin(p.wobble)));
+          ctx.fillRect(X(p.x), Y(p.y), S(w), S(p.size));
+        }
+      }
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.round(S(0.07))}px "Courier New", monospace`;
+      ctx.fillText('TIME UP - SCORE', X(0.5), Y(0.38));
+      drawNumber(state.score.me, X(0.5), Y(0.5), S(0.045));
+      return;
+    }
     if (res.tie) {
       ctx.fillStyle = '#fff';
       ctx.font = `bold ${Math.round(S(0.1))}px "Courier New", monospace`;
@@ -593,10 +619,10 @@ window.Arcade = (() => {
     ctx.globalAlpha = 0.7;
     ctx.fillText('YOU', X(0.12), Y(PLAY_H + 0.06));
     ctx.fillText('TIME', X(0.5), Y(PLAY_H + 0.06));
-    ctx.fillText('RIVAL', X(0.88), Y(PLAY_H + 0.06));
+    ctx.fillText(state.solo ? 'SOLO' : 'RIVAL', X(0.88), Y(PLAY_H + 0.06));
     ctx.globalAlpha = 1;
     drawNumber(state.score.me, X(0.12), Y(PLAY_H + 0.09), S(0.02));
-    drawNumber(state.score.opp, X(0.88), Y(PLAY_H + 0.09), S(0.02));
+    if (!state.solo) drawNumber(state.score.opp, X(0.88), Y(PLAY_H + 0.09), S(0.02));
     if (state.timeLeft !== null) {
       drawTimer(state.timeLeft, X(0.5), Y(PLAY_H + 0.09), S(0.02));
     }
@@ -611,7 +637,7 @@ window.Arcade = (() => {
     const statusY = Y(PLAY_H + 0.27);
     if (state.serveMsg && now > state.serveMsg.until) state.serveMsg = null;
     ctx.font = `${Math.round(S(0.033))}px "Courier New", monospace`;
-    if (state.resuming || !state.ws) {
+    if (!state.solo && (state.resuming || !state.ws)) {
       if (blinkOn) ctx.fillText('RECONNECTING...', X(0.5), statusY);
     } else if (state.peerAway) {
       if (blinkOn) ctx.fillText('HOLD ON: YOUR RIVAL IS COMING BACK', X(0.5), statusY);
@@ -741,6 +767,32 @@ window.Arcade = (() => {
       }));
     });
 
+    // Single player, for games that support it: no room, no network
+    const soloBtn = el('btn-solo');
+    if (soloBtn) {
+      if (!GAME.solo) {
+        soloBtn.classList.add('hidden');
+      } else {
+        soloBtn.addEventListener('click', () => {
+          beep(459, 0.03);
+          el('menu-error').textContent = '';
+          state.solo = true;
+          state.role = 'host';
+          state.config = {
+            seconds: TEST_SECONDS || state.optMinutes * 60,
+            game: GAME.game,
+            opts: GAME.getOpts ? GAME.getOpts() : {}
+          };
+          fetch('/api/track', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ page: 'solo-' + GAME.game })
+          }).catch(() => {});
+          startMatch();
+        });
+      }
+    }
+
     el('btn-share').addEventListener('click', async () => {
       try {
         await navigator.share({ title: GAME.title || 'MY ARCADE', text: 'Play with me:', url: state.shareUrl });
@@ -761,6 +813,10 @@ window.Arcade = (() => {
     el('btn-exit').addEventListener('click', backToMenu);
 
     el('btn-rematch').addEventListener('click', () => {
+      if (state.solo) {
+        startMatch(); // no rival to agree with
+        return;
+      }
       state.myRematch = true;
       sendMsg({ type: 'rematch' });
       tryRematch();

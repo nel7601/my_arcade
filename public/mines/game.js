@@ -133,7 +133,8 @@
       A.beep(330, 0.04);
     }
 
-    myTurn = !byMe;
+    // Single player: it is always your turn (the clock is the rival)
+    myTurn = A.state.solo ? true : !byMe;
     turnLeft = TURN_SECONDS;
   }
 
@@ -181,6 +182,7 @@
   A.register({
     game: 'mines',
     title: 'MINES',
+    solo: true,
 
     getOpts() {
       return { mines: optMines };
@@ -292,7 +294,10 @@
       if (!boardReady) return;
       turnLeft -= dt;
       if (turnLeft <= 0) {
-        if (myTurn) {
+        if (A.state.solo) {
+          turnLeft = TURN_SECONDS; // solo: a slow turn is just a wasted turn
+          A.beep(200, 0.1);
+        } else if (myTurn) {
           // Out of time: the turn passes
           A.send({ type: 'pass' });
           myTurn = false;

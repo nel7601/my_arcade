@@ -67,19 +67,22 @@ window.addEventListener('unhandledrejection', (e) => {
     const v = (k) => stats[k] || 0;
     let totalCreated = 0, totalPlayed = 0, totalGameVisits = 0;
 
-    let html = '<tr><th>GAME</th><th>VISITS</th><th>CREATED</th><th>PLAYED</th></tr>';
+    let totalSolo = 0;
+    let html = '<tr><th>GAME</th><th>VISITS</th><th>CREATED</th><th>PLAYED</th><th>SOLO</th></tr>';
     for (const g of GAMES) {
       const visits = v('stat:visit:' + g);
       const created = v('stat:created:' + g);
       const played = v('stat:played:' + g);
+      const solo = v('stat:visit:solo-' + g);
       totalGameVisits += visits;
       totalCreated += created;
       totalPlayed += played;
-      html += `<tr><td>${g.toUpperCase()}</td><td>${visits}</td><td>${created}</td><td>${played}</td></tr>`;
+      totalSolo += solo;
+      html += `<tr><td>${g.toUpperCase()}</td><td>${visits}</td><td>${created}</td><td>${played}</td><td>${solo}</td></tr>`;
     }
-    html += `<tr class="total"><td>ALL GAMES</td><td>${totalGameVisits}</td><td>${totalCreated}</td><td>${totalPlayed}</td></tr>`;
-    html += `<tr><td>PORTAL</td><td>${v('stat:visit:portal')}</td><td>-</td><td>-</td></tr>`;
-    html += `<tr class="total"><td>TOTAL PAGE VIEWS</td><td>${v('stat:visit:total')}</td><td>-</td><td>-</td></tr>`;
+    html += `<tr class="total"><td>ALL GAMES</td><td>${totalGameVisits}</td><td>${totalCreated}</td><td>${totalPlayed}</td><td>${totalSolo}</td></tr>`;
+    html += `<tr><td>PORTAL</td><td>${v('stat:visit:portal')}</td><td>-</td><td>-</td><td>-</td></tr>`;
+    html += `<tr class="total"><td>TOTAL PAGE VIEWS</td><td>${v('stat:visit:total')}</td><td>-</td><td>-</td><td>-</td></tr>`;
     el('stats-table').innerHTML = html;
   }
 

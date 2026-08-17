@@ -65,6 +65,7 @@
   A.register({
     game: 'invaders',
     title: 'INVADERS',
+    solo: true,
 
     onStart() {
       spawnFormation(4);
