@@ -53,6 +53,7 @@
   A.register({
     game: 'snake',
     title: 'SNAKE',
+    solo: true,
 
     getOpts() {
       const sel = document.querySelector('.opt-btn.sel[data-speed]');

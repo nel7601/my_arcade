@@ -48,6 +48,7 @@
   A.register({
     game: 'missiles',
     title: 'MISSILES',
+    solo: true,
 
     onStart() {
       cities = CITY_XS.map(() => true);

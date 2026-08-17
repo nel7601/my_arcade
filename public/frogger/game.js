@@ -63,6 +63,7 @@
   A.register({
     game: 'frogger',
     title: 'FROGGER',
+    solo: true,
 
     onStart() {
       speedFactor = 1;

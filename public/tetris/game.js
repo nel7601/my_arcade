@@ -129,6 +129,7 @@
   A.register({
     game: 'tetris',
     title: 'TETRIS',
+    solo: true,
 
     onStart() {
       board = emptyBoard();

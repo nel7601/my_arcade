@@ -105,6 +105,19 @@
     if (myDead) return;
     myDead = true;
     A.beep(120, 0.3);
+    if (A.state.solo) {
+      // Single player: your score is your BEST run; rounds keep coming
+      if (myPipes > A.state.score.me) {
+        A.state.score.me = myPipes;
+        A.flash('NEW BEST: ' + myPipes);
+        A.sndScore();
+      } else {
+        A.flash('RUN: ' + myPipes);
+      }
+      phase = 'between';
+      phaseT = INTERMISSION;
+      return;
+    }
     A.send({ type: 'crashed', pipes: myPipes });
     maybeResolveRound();
   }
@@ -132,6 +145,7 @@
   A.register({
     game: 'flappy',
     title: 'FLAPPY',
+    solo: true,
 
     getOpts() {
       return { gap: optGap };
@@ -208,7 +222,9 @@
         phaseT -= dt;
         if (phaseT <= 0) {
           phase = 'idle';
-          if (A.state.role === 'host') {
+          if (A.state.solo) {
+            hostDealRound(roundNum + 1); // endless runs until the clock ends
+          } else if (A.state.role === 'host') {
             if (matchPoint()) {
               A.state.timeLeft = 0.01; // early final whistle
             } else {
@@ -270,7 +286,9 @@
       ctx.font = `bold ${Math.round(S(0.036))}px "Courier New", monospace`;
       ctx.fillText('ROUND ' + Math.max(1, roundNum), X(0.02), Y(0.055));
       ctx.textAlign = 'right';
-      ctx.fillText(`YOU ${myPipes} · RIVAL ${rivalPipes}`, X(0.98), Y(0.055));
+      ctx.fillText(
+        A.state.solo ? `NOW ${myPipes} · BEST ${A.state.score.me}` : `YOU ${myPipes} · RIVAL ${rivalPipes}`,
+        X(0.98), Y(0.055));
       ctx.textAlign = 'left';
 
       if (phase === 'idle') return;
@@ -307,7 +325,7 @@
       }
 
       // Dead and waiting for the rival
-      if (myDead && phase === 'flying' || (myDead && !rivalFinal)) {
+      if (!A.state.solo && (myDead && phase === 'flying' || (myDead && !rivalFinal))) {
         ctx.textAlign = 'center';
         ctx.font = `${Math.round(S(0.04))}px "Courier New", monospace`;
         if (Math.floor(now / 400) % 2 === 0) {
@@ -319,8 +337,8 @@
 
     status() {
       if (phase === 'flying' && !myDead) return null;
-      if (phase === 'countdown') return 'SAME PIPES, FLY FURTHER';
-      if (myDead && !rivalFinal) return `YOU CRASHED AT ${myPipes}`;
+      if (phase === 'countdown') return A.state.solo ? 'BEAT YOUR BEST RUN' : 'SAME PIPES, FLY FURTHER';
+      if (!A.state.solo && myDead && !rivalFinal) return `YOU CRASHED AT ${myPipes}`;
       return null;
     }
   });

@@ -37,6 +37,7 @@
   A.register({
     game: 'breakout',
     title: 'BREAKOUT',
+    solo: true,
 
     onStart() {
       paddleX = 0.5;
