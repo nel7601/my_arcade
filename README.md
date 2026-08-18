@@ -22,6 +22,7 @@ one deploy and one look.
 | **FLAPPY** (2013) | [`/flappy/`](public/flappy) | Best of 5: both fly the same pipe course, furthest flight wins the round |
 | **TANKS** | [`/tanks/`](public/tanks) | Pocket Tanks style artillery: one shared landscape battlefield, turns, wind, craters |
 | **BATTLESHIP** | [`/battleship/`](public/battleship) | The classic naval duel: shuffle your fleet, call shots by turns, a hit shoots again |
+| **TIC-TAC-TOE** | [`/tictactoe/`](public/tictactoe) | Round after round on the clock: each round won is a point, the starter alternates |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
