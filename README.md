@@ -20,6 +20,7 @@ one deploy and one look.
 | **TETRIS** (1984) | [`/tetris/`](public/tetris) | Multi-line clears send garbage rows to the rival |
 | **MINES** | [`/mines/`](public/mines) | Minesweeper race on separate boards: a mine resets yours, first clear wins |
 | **FLAPPY** (2013) | [`/flappy/`](public/flappy) | Best of 5: both fly the same pipe course, furthest flight wins the round |
+| **TANKS** | [`/tanks/`](public/tanks) | Pocket Tanks style artillery: one shared landscape battlefield, turns, wind, craters |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
