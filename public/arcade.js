@@ -22,9 +22,11 @@ window.Arcade = (() => {
   // Constants
   // -------------------------------------------------------------------------
 
-  const COURT_W = 1;
-  const COURT_H = 1.6;
-  const PLAY_H = COURT_H * 4 / 5;
+  // Portrait court by default; a game with `landscape: true` gets the same
+  // court rotated (1.6 wide x 1 tall) for battlefield-style games.
+  let COURT_W = 1;
+  let COURT_H = 1.6;
+  let PLAY_H = COURT_H * 4 / 5;
 
   // ?t=SECONDS overrides the match length — handy for testing
   const TEST_SECONDS = Number(new URLSearchParams(location.search).get('t')) || 0;
@@ -370,7 +372,7 @@ window.Arcade = (() => {
       tie,
       lastNow: performance.now(),
       confetti: won ? Array.from({ length: 90 }, () => ({
-        x: Math.random(),
+        x: Math.random() * COURT_W,
         y: -Math.random() * PLAY_H,
         vx: (Math.random() - 0.5) * 0.25,
         vy: 0.25 + Math.random() * 0.55,
@@ -538,6 +540,11 @@ window.Arcade = (() => {
     const dt = Math.min((now - res.lastNow) / 1000, 0.05);
     res.lastNow = now;
 
+    // Positions as fractions of the play area and sizes relative to the
+    // court height, so the scenes fit portrait and landscape courts alike
+    const RY = (f) => Y(PLAY_H * f);
+    const RS = (u) => S(u * COURT_H / 1.6);
+
     ctx.textAlign = 'center';
     if (res.solo) {
       // Single player: your score is the whole story
@@ -546,7 +553,7 @@ window.Arcade = (() => {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
           p.wobble += dt * 6;
-          if (p.y > PLAY_H) { p.y = -0.05; p.x = Math.random(); }
+          if (p.y > PLAY_H) { p.y = -0.05; p.x = Math.random() * COURT_W; }
           if (p.y < 0) continue;
           ctx.fillStyle = p.color;
           const w = p.size * (0.6 + 0.4 * Math.abs(Math.sin(p.wobble)));
@@ -554,15 +561,15 @@ window.Arcade = (() => {
         }
       }
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.round(S(0.07))}px "Courier New", monospace`;
-      ctx.fillText('TIME UP - SCORE', X(0.5), Y(0.38));
-      drawNumber(state.score.me, X(0.5), Y(0.5), S(0.045));
+      ctx.font = `bold ${Math.round(RS(0.07))}px "Courier New", monospace`;
+      ctx.fillText('TIME UP - SCORE', X(COURT_W / 2), RY(0.3));
+      drawNumber(state.score.me, X(COURT_W / 2), RY(0.39), RS(0.045));
       return;
     }
     if (res.tie) {
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.round(S(0.1))}px "Courier New", monospace`;
-      ctx.fillText('DRAW', X(0.5), Y(PLAY_H / 2));
+      ctx.font = `bold ${Math.round(RS(0.1))}px "Courier New", monospace`;
+      ctx.fillText('DRAW', X(COURT_W / 2), Y(PLAY_H / 2));
     } else if (res.won) {
       for (const p of res.confetti) {
         p.x += p.vx * dt;
@@ -570,7 +577,7 @@ window.Arcade = (() => {
         p.wobble += dt * 6;
         if (p.y > PLAY_H) {
           p.y = -0.05;
-          p.x = Math.random();
+          p.x = Math.random() * COURT_W;
         }
         if (p.y < 0) continue;
         ctx.fillStyle = p.color;
@@ -578,13 +585,13 @@ window.Arcade = (() => {
         ctx.fillRect(X(p.x), Y(p.y), S(w), S(p.size));
       }
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.round(S(0.11))}px "Courier New", monospace`;
-      ctx.fillText('WINNER', X(0.5), Y(PLAY_H / 2));
+      ctx.font = `bold ${Math.round(RS(0.11))}px "Courier New", monospace`;
+      ctx.fillText('WINNER', X(COURT_W / 2), Y(PLAY_H / 2));
     } else {
       ctx.fillStyle = '#fff';
-      drawBitmap(SAD_FACE, X(0.5), Y(0.28), S(0.032));
-      ctx.font = `bold ${Math.round(S(0.09))}px "Courier New", monospace`;
-      ctx.fillText('YOU LOST', X(0.5), Y(0.95));
+      drawBitmap(SAD_FACE, X(COURT_W / 2), RY(0.22), RS(0.032));
+      ctx.font = `bold ${Math.round(RS(0.09))}px "Courier New", monospace`;
+      ctx.fillText('YOU LOST', X(COURT_W / 2), RY(0.74));
     }
   }
 
@@ -623,17 +630,19 @@ window.Arcade = (() => {
     }
 
     // Info zone: score in the corners, clock in the middle
+    const IZ = COURT_H - PLAY_H; // info-zone height (a fifth of the court)
+    const izY = (f) => Y(PLAY_H + IZ * f);
     ctx.font = `${Math.round(S(0.028))}px "Courier New", monospace`;
     ctx.textAlign = 'center';
     ctx.globalAlpha = 0.7;
-    ctx.fillText('YOU', X(0.12), Y(PLAY_H + 0.06));
-    ctx.fillText('TIME', X(0.5), Y(PLAY_H + 0.06));
-    ctx.fillText(state.solo ? 'SOLO' : 'RIVAL', X(0.88), Y(PLAY_H + 0.06));
+    ctx.fillText('YOU', X(COURT_W * 0.12), izY(0.19));
+    ctx.fillText('TIME', X(COURT_W * 0.5), izY(0.19));
+    ctx.fillText(state.solo ? 'SOLO' : 'RIVAL', X(COURT_W * 0.88), izY(0.19));
     ctx.globalAlpha = 1;
-    drawNumber(state.score.me, X(0.12), Y(PLAY_H + 0.09), S(0.02));
-    if (!state.solo) drawNumber(state.score.opp, X(0.88), Y(PLAY_H + 0.09), S(0.02));
+    drawNumber(state.score.me, X(COURT_W * 0.12), izY(0.28), S(0.02));
+    if (!state.solo) drawNumber(state.score.opp, X(COURT_W * 0.88), izY(0.28), S(0.02));
     if (state.timeLeft !== null) {
-      drawTimer(state.timeLeft, X(0.5), Y(PLAY_H + 0.09), S(0.02));
+      drawTimer(state.timeLeft, X(COURT_W * 0.5), izY(0.28), S(0.02));
     }
 
     if (ended) {
@@ -643,19 +652,19 @@ window.Arcade = (() => {
 
     // Status line
     const blinkOn = Math.floor(now / 500) % 2 === 0;
-    const statusY = Y(PLAY_H + 0.27);
+    const statusY = izY(0.84);
     if (state.serveMsg && now > state.serveMsg.until) state.serveMsg = null;
     ctx.font = `${Math.round(S(0.033))}px "Courier New", monospace`;
     if (!state.solo && (state.resuming || !state.ws)) {
-      if (blinkOn) ctx.fillText('RECONNECTING...', X(0.5), statusY);
+      if (blinkOn) ctx.fillText('RECONNECTING...', X(COURT_W / 2), statusY);
     } else if (state.peerAway) {
-      if (blinkOn) ctx.fillText('HOLD ON: YOUR RIVAL IS COMING BACK', X(0.5), statusY);
+      if (blinkOn) ctx.fillText('HOLD ON: YOUR RIVAL IS COMING BACK', X(COURT_W / 2), statusY);
     } else if (state.serveMsg) {
       ctx.font = `bold ${Math.round(S(0.04))}px "Courier New", monospace`;
-      ctx.fillText(state.serveMsg.text, X(0.5), statusY);
+      ctx.fillText(state.serveMsg.text, X(COURT_W / 2), statusY);
     } else {
       const txt = GAME.status ? GAME.status() : null;
-      if (txt && blinkOn) ctx.fillText(txt, X(0.5), statusY);
+      if (txt && blinkOn) ctx.fillText(txt, X(COURT_W / 2), statusY);
     }
   }
 
@@ -898,6 +907,15 @@ window.Arcade = (() => {
 
   function register(def) {
     GAME = def;
+    if (def.landscape) {
+      // Battlefield games: same court, rotated on its side
+      COURT_W = 1.6;
+      COURT_H = 1;
+      PLAY_H = COURT_H * 4 / 5;
+      api.COURT_W = COURT_W;
+      api.COURT_H = COURT_H;
+      api.PLAY_H = PLAY_H;
+    }
     bindUI();
     startup();
     // Exposed for automated tests; not part of the game logic
@@ -905,7 +923,7 @@ window.Arcade = (() => {
     window.__pong = state;
   }
 
-  return {
+  const api = {
     register,
     state,
     send: sendMsg,
@@ -918,4 +936,5 @@ window.Arcade = (() => {
     X, Y, S,
     ctx
   };
+  return api;
 })();
