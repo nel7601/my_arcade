@@ -35,11 +35,14 @@
   const G = 0.55;                // gravity, court units / s^2
   const DT = 1 / 120;            // fixed physics step: identical on both phones
 
+  // Blast radii: SHELL is the reference; BIG ONE blows a much wider hole
+  // but pays LESS than the default shell, and TRIPLE's little explosions
+  // are 25% smaller than the shell's.
   const WEAPONS = [
-    { name: 'SHELL',   blast: 0.09, pts: 20, n: 1 },
-    { name: 'BIG ONE', blast: 0.16, pts: 30, n: 1 },
-    { name: 'TRIPLE',  blast: 0.07, pts: 12, n: 3, spread: 6 },
-    { name: 'DIGGER',  blast: 0.20, pts: 8,  n: 1 }
+    { name: 'SHELL',   blast: 0.072, pts: 20, n: 1 },
+    { name: 'BIG ONE', blast: 0.128, pts: 15, n: 1 },
+    { name: 'TRIPLE',  blast: 0.054, pts: 12, n: 3, spread: 6 },
+    { name: 'DIGGER',  blast: 0.16,  pts: 8,  n: 1 }
   ];
 
   // Deterministic PRNG so both phones build the identical battlefield
