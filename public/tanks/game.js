@@ -44,6 +44,8 @@
     { name: 'TRIPLE',  blast: 0.054, pts: 12, n: 3, spread: 6 },
     { name: 'DIGGER',  blast: 0.16,  pts: 8,  n: 1 }
   ];
+  const DIGGER_I = 3;
+  const DIGGER_AMMO = 3;         // diggers per player per match
 
   // Deterministic PRNG so both phones build the identical battlefield
   function mulberry32(seed) {
@@ -67,6 +69,7 @@
   let volley = 0;
   let wind = 0;
   let myWeapon = 0;
+  let digs = { host: DIGGER_AMMO, guest: DIGGER_AMMO }; // diggers left
   let shots = [];                // live projectiles
   let booms = [];                // explosion rings (visual only)
   let firedThisVolley = false;
@@ -143,6 +146,8 @@
     acc = 0;
     aim = null;
     lastShot = null;
+    digs = { host: DIGGER_AMMO, guest: DIGGER_AMMO };
+    if (myWeapon === DIGGER_I) myWeapon = 0;
     worldReady = true;
     if (A.state.solo) targets = [spawnTarget(), spawnTarget(), spawnTarget()];
   }
@@ -177,6 +182,11 @@
     t.barrel = a10 / 10;
     lastShot = { a: Math.round(a10 / 10), p };
     firedThisVolley = true;
+    if (w === DIGGER_I) {
+      digs[from] = Math.max(0, digs[from] - 1);
+      // Out of diggers: drop back to the default shell
+      if (from === myRole() && myWeapon === DIGGER_I && digs[from] === 0) myWeapon = 0;
+    }
     A.beep(320, 0.08);
   }
 
@@ -362,7 +372,8 @@
               seed,
               ground: ground.map(g => Math.round(g * 1000) / 1000),
               turn,
-              volley
+              volley,
+              digs
             });
           }
           break;
@@ -376,6 +387,13 @@
           shots = [];
           booms = [];
           firedThisVolley = false;
+          if (msg.digs) {
+            digs = {
+              host: Math.max(0, Math.min(DIGGER_AMMO, Number(msg.digs.host) || 0)),
+              guest: Math.max(0, Math.min(DIGGER_AMMO, Number(msg.digs.guest) || 0))
+            };
+          }
+          if (myWeapon === DIGGER_I && digs[myRole()] <= 0) myWeapon = 0;
           settleTanks();
           worldReady = true;
           hostDealDeadline = Infinity;
@@ -400,12 +418,16 @@
       aim = null;
       if (len < 0.03) {
         if (inWeaponBox && canFire()) {
-          myWeapon = (myWeapon + 1) % WEAPONS.length;
+          // Cycle weapons, skipping the digger once its 3 uses are spent
+          do {
+            myWeapon = (myWeapon + 1) % WEAPONS.length;
+          } while (myWeapon === DIGGER_I && digs[myRole()] <= 0);
           A.beep(500, 0.04);
         }
         return;
       }
       if (!canFire()) return;
+      if (myWeapon === DIGGER_I && digs[myRole()] <= 0) myWeapon = 0;
       const a10 = Math.round(Math.atan2(-dy, dx) * 1800 / Math.PI);
       const p = Math.max(10, Math.min(100, Math.round((len / 0.5) * 100)));
       A.send({ type: 'shot', a: a10, p, w: myWeapon });
@@ -548,7 +570,8 @@
       ctx.textAlign = 'left';
       if (canFire() || shots.length) {
         const flip = canFire() ? ' ▸' : '';
-        ctx.fillText('[ ' + WEAPONS[myWeapon].name + flip + ' ]', X(0.02), Y(0.055));
+        const ammo = myWeapon === DIGGER_I ? ' x' + digs[myRole()] : '';
+        ctx.fillText('[ ' + WEAPONS[myWeapon].name + ammo + flip + ' ]', X(0.02), Y(0.055));
       }
       ctx.textAlign = 'center';
       const wN = Math.round(Math.abs(wind) * 100);
@@ -602,10 +625,12 @@
       gx: tanks.guest.x, gy: tanks.guest.y
     },
     targets: targets.map(t => t.x),
+    digs: { host: digs.host, guest: digs.guest },
     canFire: canFire()
   });
   A.state.tkFire = (a10, p, w) => {
     if (!canFire()) return false;
+    if (w === DIGGER_I && digs[myRole()] <= 0) return false;
     if (typeof w === 'number') myWeapon = w;
     A.send({ type: 'shot', a: a10, p, w: myWeapon });
     fire(myRole(), a10, p, myWeapon);
