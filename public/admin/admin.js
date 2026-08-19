@@ -16,7 +16,7 @@ window.addEventListener('unhandledrejection', (e) => {
 });
 
 (() => {
-  const GAMES = ['pong', 'bricks', 'snake', 'breakout', 'invaders', 'missiles', 'frogger', 'tetris', 'mines', 'flappy', 'tanks', 'battleship', 'tictactoe', 'connect4'];
+  const GAMES = ['pong', 'bricks', 'snake', 'breakout', 'invaders', 'missiles', 'frogger', 'tetris', 'mines', 'flappy', 'tanks', 'battleship', 'tictactoe', 'connect4', 'checkers'];
   const el = (id) => document.getElementById(id);
   const TOKEN_KEY = 'arcade_admin_token';
 
