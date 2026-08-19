@@ -24,6 +24,7 @@ one deploy and one look.
 | **BATTLESHIP** | [`/battleship/`](public/battleship) | The classic naval duel: shuffle your fleet, call shots by turns, a hit shoots again |
 | **TIC-TAC-TOE** | [`/tictactoe/`](public/tictactoe) | Round after round on the clock: each round won is a point, the starter alternates |
 | **CONNECT 4** | [`/connect4/`](public/connect4) | Drop discs into the 7x6 board: four in a row wins the round, most rounds wins |
+| **CHECKERS** | [`/checkers/`](public/checkers) | English draughts with forced captures and kings: every piece taken is a point |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
