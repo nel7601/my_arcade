@@ -25,7 +25,7 @@ one deploy and one look.
 | **TIC-TAC-TOE** | [`/tictactoe/`](public/tictactoe) | Round after round on the clock: each round won is a point, the starter alternates |
 | **CONNECT 4** | [`/connect4/`](public/connect4) | Drop discs into the 7x6 board: four in a row wins the round, most rounds wins |
 | **CHECKERS** | [`/checkers/`](public/checkers) | English draughts with forced captures and kings: every piece taken is a point |
-| **ARCHER** | [`/archer/`](public/archer) | Bowman-style archery duel on a shared landscape field: head shots pay double |
+| **ARCHER** | [`/archer/`](public/archer) | Real-time archery duel on bobbing platforms, no turns: head shots pay double |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
