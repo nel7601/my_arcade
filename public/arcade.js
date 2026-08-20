@@ -328,7 +328,9 @@ window.Arcade = (() => {
     state.score = { me: 0, opp: 0 };
     state.myRematch = false;
     state.theirRematch = false;
-    state.timeLeft = state.config.seconds;
+    // Untimed games (e.g. PARCHEESI) have no countdown: they end when the
+    // game itself blows the whistle by setting state.timeLeft = 0.01
+    state.timeLeft = GAME.untimed ? null : state.config.seconds;
     state.timeUpSent = false;
     state.result = null;
     state.serveMsg = null;
@@ -362,8 +364,10 @@ window.Arcade = (() => {
     setQuitVisible(false);
     clearSession();
     state.phase = 'over';
-    state.timeLeft = 0;
-    const solo = state.solo;
+    state.timeLeft = GAME.untimed ? null : 0;
+    // soloVersus games (CPU rival with a synced-style score) use the
+    // duel result scenes even in single player
+    const solo = state.solo && !GAME.soloVersus;
     const tie = !solo && state.score.me === state.score.opp;
     const won = solo ? state.score.me > 0 : state.score.me > state.score.opp;
     state.result = {
@@ -636,11 +640,14 @@ window.Arcade = (() => {
     ctx.textAlign = 'center';
     ctx.globalAlpha = 0.7;
     ctx.fillText('YOU', X(COURT_W * 0.12), izY(0.19));
-    ctx.fillText('TIME', X(COURT_W * 0.5), izY(0.19));
-    ctx.fillText(state.solo ? 'SOLO' : 'RIVAL', X(COURT_W * 0.88), izY(0.19));
+    if (state.timeLeft !== null) ctx.fillText('TIME', X(COURT_W * 0.5), izY(0.19));
+    ctx.fillText(state.solo ? (GAME.soloVersus ? 'CPU' : 'SOLO') : 'RIVAL',
+      X(COURT_W * 0.88), izY(0.19));
     ctx.globalAlpha = 1;
     drawNumber(state.score.me, X(COURT_W * 0.12), izY(0.28), S(0.02));
-    if (!state.solo) drawNumber(state.score.opp, X(COURT_W * 0.88), izY(0.28), S(0.02));
+    if (!state.solo || GAME.soloVersus) {
+      drawNumber(state.score.opp, X(COURT_W * 0.88), izY(0.28), S(0.02));
+    }
     if (state.timeLeft !== null) {
       drawTimer(state.timeLeft, X(COURT_W * 0.5), izY(0.28), S(0.02));
     }

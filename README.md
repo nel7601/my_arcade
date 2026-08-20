@@ -26,6 +26,7 @@ one deploy and one look.
 | **CONNECT 4** | [`/connect4/`](public/connect4) | Drop discs into the 7x6 board: four in a row wins the round, most rounds wins |
 | **CHECKERS** | [`/checkers/`](public/checkers) | English draughts with forced captures and kings: every piece taken is a point |
 | **ARCHER** | [`/archer/`](public/archer) | Real-time archery duel on bobbing platforms, no turns: head shots pay double |
+| **PARCHEESI** | [`/parcheesi/`](public/parcheesi) | The classic 68-square race, no clock: first to walk all 4 pawns home wins |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
