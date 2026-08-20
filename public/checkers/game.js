@@ -294,15 +294,23 @@
         return flip ? [N - 1 - c, N - 1 - r] : [c, r];
       };
 
-      // Header
+      // Header: whose turn it is (your color lives in the status line below)
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
-      ctx.font = `bold ${Math.round(S(0.038))}px "Courier New", monospace`;
-      ctx.fillText('YOU PLAY', X(0.42), Y(0.1));
-      ctx.fillStyle = me === 'host' ? BLUE : ORANGE;
-      ctx.beginPath();
-      ctx.arc(X(0.63), Y(0.088), S(0.026), 0, Math.PI * 2);
-      ctx.fill();
+      ctx.font = `bold ${Math.round(S(0.036))}px "Courier New", monospace`;
+      if (!gameOver) {
+        let head;
+        if (turnRole !== me) {
+          head = A.state.solo ? 'THE MACHINE IS THINKING...' : "RIVAL'S TURN...";
+        } else if (chain >= 0) {
+          head = 'KEEP JUMPING!';
+        } else if (legalMoves(board, me, -1).some(m => m.over !== null)) {
+          head = 'CAPTURE IS FORCED: TAP THE BIG DOT';
+        } else {
+          head = 'YOUR TURN: TAP A PIECE, THEN A DOT';
+        }
+        ctx.fillText(head, X(0.5), Y(0.1));
+      }
 
       // Board squares: dark squares get a faint fill
       for (let i = 0; i < N * N; i++) {
@@ -401,10 +409,7 @@
     status() {
       if (gameOver) return null;
       const me = A.state.solo ? 'host' : myRole();
-      if (turnRole !== me) return A.state.solo ? 'THE MACHINE IS THINKING...' : "RIVAL'S TURN...";
-      if (chain >= 0) return 'KEEP JUMPING!';
-      const forced = legalMoves(board, me, -1).some(m => m.over !== null);
-      return forced ? 'CAPTURE IS FORCED: TAP THE BIG DOT' : 'YOUR TURN: TAP A PIECE, THEN A DOT';
+      return 'YOU PLAY ' + (me === 'host' ? 'BLUE' : 'ORANGE');
     }
   });
 
