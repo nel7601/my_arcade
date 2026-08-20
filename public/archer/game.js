@@ -35,7 +35,11 @@
   const COOLDOWN = 1400;         // ms between arrows
   const PLAT_W = 0.1, PLAT_H = 0.012;
   const HEAD_R = 0.024;
-  const BLUE = '#5ad0ff', ORANGE = '#ffb04f', GRAY = '#9aa7b0';
+  const BLUE = '#5ad0ff', ORANGE = '#ffb04f', GRAY = '#9aa7b0', RED = '#ff3b30';
+
+  // It takes 3 leg hits, 2 body hits or 1 head shot to kill
+  const HP_MAX = 6;
+  const DMG = { head: 6, body: 3, leg: 2 };
 
   // Deterministic PRNG so both phones deal identical duels
   function mulberry32(seed) {
@@ -59,6 +63,9 @@
   };
   let arrows = [];               // in flight: {id, from, x, y, vx, vy, age, trail}
   let stuck = [];                // arrows in the ground {x, y, ang}
+  let hp = { host: HP_MAX, guest: HP_MAX };
+  let wounds = { host: [], guest: [] };  // open wounds: {zone, drip}
+  let blood = [];                // falling droplets {x, y, vy, life}
   let nextId = 1;
   let lastFireAt = -1e9;
   let aim = null;
@@ -77,6 +84,12 @@
   const platY = (role, t) => 0.48 - plat[role].amp * Math.sin(plat[role].om * t + plat[role].ph);
   const feetY = (role, t) => platY(role, t) - PLAT_H / 2;
 
+  // Where a wound of each zone sits on the archer (for blood and marks)
+  const zoneY = (role, zone, t) => {
+    const fy = feetY(role, t);
+    return zone === 'head' ? fy - 0.09 : zone === 'body' ? fy - 0.052 : fy - 0.015;
+  };
+
   function placeArchers() {
     const rnd = mulberry32((seed ^ 0x9E3779B9) + roundN * 613);
     pos.host = 0.10 + rnd() * 0.25;
@@ -91,6 +104,9 @@
     stuck = [];
     arrows = [];
     gt = 0;
+    hp = { host: HP_MAX, guest: HP_MAX };
+    wounds = { host: [], guest: [] };
+    blood = [];
   }
 
   function applyWorld(s) {
@@ -118,12 +134,22 @@
 
   // ---- Shooting & flight ------------------------------------------------------
 
-  // 'head' | 'body' | null against `role`'s archer at round-time t
+  // 'head' | 'body' | 'leg' | null against `role`'s archer at round-time t
   function hitTestAt(role, x, y, t) {
     const ax = pos[role], fy = feetY(role, t);
     if (Math.hypot(x - ax, y - (fy - 0.095)) < HEAD_R) return 'head';
-    if (Math.abs(x - ax) < 0.02 && y > fy - 0.078 && y <= fy) return 'body';
+    if (Math.abs(x - ax) < 0.02) {
+      if (y > fy - 0.078 && y <= fy - 0.03) return 'body';
+      if (y > fy - 0.03 && y <= fy) return 'leg';
+    }
     return null;
+  }
+
+  // Wound bookkeeping: returns true when the hit is lethal
+  function damage(role, zone) {
+    hp[role] = Math.max(0, hp[role] - (DMG[zone] || 2));
+    wounds[role].push({ zone, drip: 0 });
+    return hp[role] <= 0;
   }
 
   function spawnArrow(from, id, a10, p, y0) {
@@ -150,11 +176,10 @@
     lastFireAt = performance.now();
   }
 
-  // The shooter learns about its hit from the victim's phone
-  function confirmedHit(hit) {
-    const pts = hit === 'head' ? 2 : 1;
-    A.addScore(pts);
-    A.flash(hit === 'head' ? 'HEAD SHOT! +2' : 'HIT! +1');
+  // The shooter learns about the outcome from the victim's phone
+  function confirmedKill(zone) {
+    A.addScore(1);
+    A.flash(zone === 'head' ? 'HEAD SHOT! KILL +1' : 'KILL! +1');
     A.sndScore();
   }
 
@@ -180,10 +205,11 @@
           const hit = hitTestAt(me, ar.x, ar.y, gt);
           if (hit) {
             arrows.splice(i, 1);
-            A.send({ type: 'ouch', id: ar.id, hit });
-            A.flash('YOU TOOK A HIT!');
+            const dead = damage(me, hit);
+            A.send({ type: 'ouch', id: ar.id, hit, dead });
+            A.flash(dead ? 'YOU WERE KILLED!' : "YOU'RE HIT: " + hit.toUpperCase());
             A.beep(120, 0.25);
-            if (myRole() === 'host') nextRound();
+            if (dead && myRole() === 'host') nextRound();
             continue;
           }
         } else if (A.state.solo) {
@@ -191,9 +217,14 @@
           const hit = hitTestAt('guest', ar.x, ar.y, gt);
           if (hit) {
             arrows.splice(i, 1);
-            confirmedHit(hit);
-            roundN += 1;
-            placeArchers();
+            if (damage('guest', hit)) {
+              confirmedKill(hit);
+              roundN += 1;
+              placeArchers();
+            } else {
+              A.flash('HIT: ' + hit.toUpperCase() + '!');
+              A.beep(160, 0.2);
+            }
             continue;
           }
         }
@@ -302,11 +333,18 @@
 
         case 'ouch': {
           // My arrow connected: the victim's phone is the referee
-          confirmedHit(msg.hit === 'head' ? 'head' : 'body');
+          const zone = ['head', 'body', 'leg'].includes(msg.hit) ? msg.hit : 'body';
+          if (msg.dead) {
+            confirmedKill(zone);
+          } else {
+            damage(foe(myRole()), zone); // mirror the rival's wounds locally
+            A.flash('HIT: ' + zone.toUpperCase() + '!');
+            A.beep(160, 0.2);
+          }
           const k = arrows.findIndex(ar => ar.id === Number(msg.id) &&
             ar.from === myRole());
           if (k >= 0) arrows.splice(k, 1);
-          if (myRole() === 'host') nextRound();
+          if (msg.dead && myRole() === 'host') nextRound();
           break;
         }
 
@@ -319,7 +357,11 @@
 
         case 'state_req':
           if (worldReady) {
-            A.send({ type: 'state', seed, roundN, t: Math.round(gt * 100) / 100 });
+            A.send({
+              type: 'state', seed, roundN, t: Math.round(gt * 100) / 100,
+              hp,
+              wz: { host: wounds.host.map(w => w.zone), guest: wounds.guest.map(w => w.zone) }
+            });
           }
           break;
 
@@ -328,6 +370,19 @@
           roundN = Number(msg.roundN) || 0;
           placeArchers();
           gt = Number(msg.t) || 0;
+          // A reload must not heal anyone: wounds and hp travel too
+          if (msg.hp) {
+            // In a live round hp is always 1..HP_MAX (0 re-deals instantly)
+            const cl = (v) => (Number.isFinite(v) ? Math.max(1, Math.min(HP_MAX, v)) : HP_MAX);
+            hp = { host: cl(Number(msg.hp.host)), guest: cl(Number(msg.hp.guest)) };
+          }
+          if (msg.wz) {
+            for (const role of ['host', 'guest']) {
+              wounds[role] = (msg.wz[role] || [])
+                .filter(z => ['head', 'body', 'leg'].includes(z))
+                .map(z => ({ zone: z, drip: 0 }));
+            }
+          }
           worldReady = true;
           hostDealDeadline = Infinity;
           break;
@@ -372,6 +427,30 @@
         gt += DT;
         if (arrows.length) physStep();
       }
+
+      // Bleeding: open wounds drip until the duel is re-dealt
+      for (const role of ['host', 'guest']) {
+        for (const w of wounds[role]) {
+          w.drip -= dt;
+          if (w.drip <= 0 && blood.length < 80) {
+            w.drip = 0.1 + Math.random() * 0.15;
+            blood.push({
+              x: pos[role] + (Math.random() - 0.5) * 0.016,
+              y: zoneY(role, w.zone, gt),
+              vy: 0.02 + Math.random() * 0.05,
+              life: 1
+            });
+          }
+        }
+      }
+      for (let i = blood.length - 1; i >= 0; i--) {
+        const d = blood[i];
+        d.vy += G * dt * 0.6;
+        d.y += d.vy * dt;
+        d.life -= dt * 0.5;
+        if (d.y >= GY || d.life <= 0) blood.splice(i, 1);
+      }
+
       if (!A.state.solo && A.state.role === 'host' && now - lastGts > 4000) {
         lastGts = now;
         A.send({ type: 'gts', t: Math.round(gt * 100) / 100, n: roundN });
@@ -426,13 +505,38 @@
         ctx.fillRect(X(pos[role] - 0.004), Y(fy + PLAT_H), S(0.008), S(0.02));
         drawArcher(pos[role], role === 'host' ? 1 : -1, col, fy,
           mine && av ? av.a : null);
+
+        // Open wounds: red marks on the archer
+        ctx.fillStyle = RED;
+        wounds[role].forEach((w, k) => {
+          const wy = zoneY(role, w.zone, gt);
+          ctx.beginPath();
+          ctx.arc(X(pos[role] + (k % 2 ? 0.007 : -0.006)), Y(wy), S(0.005), 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // Health bar over the head
+        const frac = hp[role] / HP_MAX;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(X(pos[role] - 0.032), Y(fy - 0.132), S(0.064), S(0.008));
+        ctx.fillStyle = frac > 0.5 ? '#37e05a' : RED;
+        ctx.fillRect(X(pos[role] - 0.032), Y(fy - 0.132), S(0.064 * frac), S(0.008));
+
         if (mine) {
           ctx.fillStyle = color;
           ctx.textAlign = 'center';
           ctx.font = `bold ${Math.round(S(0.024))}px "Courier New", monospace`;
-          ctx.fillText('YOU', X(pos[role]), Y(fy - 0.15));
+          ctx.fillText('YOU', X(pos[role]), Y(fy - 0.152));
         }
       }
+
+      // Blood droplets falling from open wounds
+      ctx.fillStyle = RED;
+      for (const d of blood) {
+        ctx.globalAlpha = Math.max(0.2, d.life);
+        ctx.fillRect(X(d.x) - 1, Y(d.y) - 2, 2, 4);
+      }
+      ctx.globalAlpha = 1;
 
       // Aim arrow while drawing the bow
       if (av && canFire()) {
@@ -517,10 +621,27 @@
     ctx.moveTo(X(ax), Y(fy - 0.03));
     ctx.lineTo(X(ax + 0.014), Y(fy));
     ctx.stroke();
+    // Bow: a tall shallow limb (quadratic curve) with a straight string,
+    // held out along the aim - much flatter than the old semicircle
     const base = aimDeg !== null ? aimDeg * Math.PI / 180 : (dir > 0 ? 0.6 : Math.PI - 0.6);
+    const hx = ax + Math.cos(base) * 0.03;          // bow hand
+    const hy = fy - 0.06 - Math.sin(base) * 0.03;
+    const px = Math.cos(base + Math.PI / 2), py = -Math.sin(base + Math.PI / 2);
+    const L = 0.042;                                 // half length, tip to tip
+    const t1x = hx + px * L, t1y = hy + py * L;
+    const t2x = hx - px * L, t2y = hy - py * L;
+    const cxp = hx + Math.cos(base) * 0.02;          // shallow belly toward the aim
+    const cyp = hy - Math.sin(base) * 0.02;
+    ctx.lineWidth = Math.max(2, S(0.007));
     ctx.beginPath();
-    ctx.arc(X(ax + Math.cos(base) * 0.032), Y(fy - 0.06 - Math.sin(base) * 0.032),
-      S(0.026), base - Math.PI / 2, base + Math.PI / 2);
+    ctx.moveTo(X(t1x), Y(t1y));
+    ctx.quadraticCurveTo(X(cxp), Y(cyp), X(t2x), Y(t2y));
+    ctx.stroke();
+    // string between the tips
+    ctx.lineWidth = Math.max(1, S(0.0025));
+    ctx.beginPath();
+    ctx.moveTo(X(t1x), Y(t1y));
+    ctx.lineTo(X(t2x), Y(t2y));
     ctx.stroke();
   }
 
@@ -543,7 +664,10 @@
     guestX: Math.round(pos.guest * 1000) / 1000,
     hostY: Math.round(feetY('host', gt) * 1000) / 1000,
     guestY: Math.round(feetY('guest', gt) * 1000) / 1000,
-    arrows: arrows.length, stuck: stuck.length, canFire: canFire()
+    arrows: arrows.length, stuck: stuck.length, canFire: canFire(),
+    hp: { host: hp.host, guest: hp.guest },
+    wounds: { host: wounds.host.map(w => w.zone), guest: wounds.guest.map(w => w.zone) },
+    blood: blood.length
   });
   A.state.arFire = (a10, p) => {
     if (!canFire()) return false;
