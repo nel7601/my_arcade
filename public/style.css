@@ -321,11 +321,18 @@ body.portal {
   letter-spacing: 1px;
 }
 
+/* The stats table is wider than a phone: let it scroll sideways */
+.admin-table-wrap {
+  width: min(360px, 92vw);
+  overflow-x: auto;
+}
+
 .admin-table th,
 .admin-table td {
   border: 1px solid #444;
   padding: 8px 6px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .admin-table th {
