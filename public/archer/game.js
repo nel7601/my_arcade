@@ -66,6 +66,10 @@
   let hp = { host: HP_MAX, guest: HP_MAX };
   let wounds = { host: [], guest: [] };  // open wounds: {zone, drip}
   let blood = [];                // falling droplets {x, y, vy, life}
+  let deadRole = null;           // who is ragdolling right now
+  let respawnAt = 0;             // when the host re-deals after a death
+  let ragdoll = null;            // verlet puppet: {role, pts, cons, drip}
+  const RESPAWN_MS = 3000;
   let nextId = 1;
   let lastFireAt = -1e9;
   let aim = null;
@@ -78,7 +82,8 @@
 
   const myRole = () => A.state.role;
   const foe = (r) => (r === 'host' ? 'guest' : 'host');
-  const canFire = () => worldReady && performance.now() - lastFireAt > COOLDOWN;
+  const canFire = () =>
+    worldReady && !deadRole && performance.now() - lastFireAt > COOLDOWN;
 
   // Platform center height at round-time t (seeded sine, same on both phones)
   const platY = (role, t) => 0.48 - plat[role].amp * Math.sin(plat[role].om * t + plat[role].ph);
@@ -107,6 +112,73 @@
     hp = { host: HP_MAX, guest: HP_MAX };
     wounds = { host: [], guest: [] };
     blood = [];
+    deadRole = null;
+    ragdoll = null;
+  }
+
+  // ---- Ragdoll: a small verlet puppet that tumbles off the platform ----------
+
+  function spawnRagdoll(role, dir) {
+    const ax = pos[role], fy = feetY(role, gt);
+    const rnd = mulberry32((seed ^ 0xC0FFEE) + roundN * 97 + (role === 'host' ? 0 : 7));
+    const rel = [
+      [0, -0.095],            // head
+      [0, -0.07],             // shoulders
+      [0, -0.03],             // hip
+      [-0.014, 0],            // left foot
+      [0.014, 0],             // right foot
+      [(role === 'host' ? 1 : -1) * 0.03, -0.06] // bow hand
+    ];
+    const kick = 0.25 + rnd() * 0.2;
+    const h = 1 / 60; // verlet stores velocity as last-frame displacement
+    const pts = rel.map(([ox, oy]) => {
+      const vx = dir * kick * (0.7 + rnd() * 0.6);
+      const vy = -(0.15 + rnd() * 0.25);
+      return { x: ax + ox, y: fy + oy, px: ax + ox - vx * h, py: fy + oy - vy * h };
+    });
+    const len = (a, b) => Math.hypot(pts[a].x - pts[b].x, pts[a].y - pts[b].y);
+    const cons = [[0, 1], [1, 2], [2, 3], [2, 4], [1, 5]].map(([a, b]) => [a, b, len(a, b)]);
+    ragdoll = { role, pts, cons, drip: 0 };
+  }
+
+  function stepRagdoll(dt) {
+    if (!ragdoll) return;
+    const d = Math.min(dt, 0.033);
+    for (const p of ragdoll.pts) {
+      const vx = (p.x - p.px) * 0.995, vy = (p.y - p.py) * 0.995;
+      p.px = p.x; p.py = p.y;
+      p.x += vx;
+      p.y += vy + G * d * d;
+      if (p.y > GY) { // ground: bounce a little, drag a lot
+        p.y = GY;
+        p.px = p.x - vx * 0.4;
+        p.py = p.y + vy * 0.35;
+      }
+    }
+    for (let it = 0; it < 3; it++) {
+      for (const [a, b, L] of ragdoll.cons) {
+        const pa = ragdoll.pts[a], pb = ragdoll.pts[b];
+        const dx = pb.x - pa.x, dy = pb.y - pa.y;
+        const dist = Math.hypot(dx, dy) || 1e-6;
+        const off = (dist - L) / dist / 2;
+        pa.x += dx * off; pa.y += dy * off;
+        pb.x -= dx * off; pb.y -= dy * off;
+      }
+    }
+    // The body keeps bleeding while it tumbles
+    ragdoll.drip -= dt;
+    if (ragdoll.drip <= 0 && blood.length < 80) {
+      ragdoll.drip = 0.08;
+      const hipPt = ragdoll.pts[2];
+      blood.push({ x: hipPt.x, y: hipPt.y, vy: 0.02, life: 1 });
+    }
+  }
+
+  // A death freezes the duel: the loser ragdolls, then the host re-deals
+  function startDeath(role, dir) {
+    deadRole = role;
+    respawnAt = performance.now() + RESPAWN_MS;
+    spawnRagdoll(role, dir);
   }
 
   function applyWorld(s) {
@@ -199,28 +271,29 @@
       }
       if (ar.x < -0.1 || ar.x > CW + 0.1) { arrows.splice(i, 1); continue; }
 
-      if (ar.age > 0.05) {
+      if (ar.age > 0.05 && !deadRole) {
         if (ar.from !== me) {
           // I am the authority on arrows hitting MY archer
           const hit = hitTestAt(me, ar.x, ar.y, gt);
           if (hit) {
+            const dir = ar.vx >= 0 ? 1 : -1;
             arrows.splice(i, 1);
             const dead = damage(me, hit);
             A.send({ type: 'ouch', id: ar.id, hit, dead });
             A.flash(dead ? 'YOU WERE KILLED!' : "YOU'RE HIT: " + hit.toUpperCase());
             A.beep(120, 0.25);
-            if (dead && myRole() === 'host') nextRound();
+            if (dead) startDeath(me, dir);
             continue;
           }
         } else if (A.state.solo) {
           // Solo: the dummy has no phone, so I judge my own arrows
           const hit = hitTestAt('guest', ar.x, ar.y, gt);
           if (hit) {
+            const dir = ar.vx >= 0 ? 1 : -1;
             arrows.splice(i, 1);
             if (damage('guest', hit)) {
               confirmedKill(hit);
-              roundN += 1;
-              placeArchers();
+              startDeath('guest', dir);
             } else {
               A.flash('HIT: ' + hit.toUpperCase() + '!');
               A.beep(160, 0.2);
@@ -334,17 +407,20 @@
         case 'ouch': {
           // My arrow connected: the victim's phone is the referee
           const zone = ['head', 'body', 'leg'].includes(msg.hit) ? msg.hit : 'body';
+          const k = arrows.findIndex(ar => ar.id === Number(msg.id) &&
+            ar.from === myRole());
+          const dir = k >= 0 ? (arrows[k].vx >= 0 ? 1 : -1)
+            : (pos[foe(myRole())] >= pos[myRole()] ? 1 : -1);
+          if (k >= 0) arrows.splice(k, 1);
           if (msg.dead) {
             confirmedKill(zone);
+            damage(foe(myRole()), zone);
+            startDeath(foe(myRole()), dir);
           } else {
             damage(foe(myRole()), zone); // mirror the rival's wounds locally
             A.flash('HIT: ' + zone.toUpperCase() + '!');
             A.beep(160, 0.2);
           }
-          const k = arrows.findIndex(ar => ar.id === Number(msg.id) &&
-            ar.from === myRole());
-          if (k >= 0) arrows.splice(k, 1);
-          if (msg.dead && myRole() === 'host') nextRound();
           break;
         }
 
@@ -360,7 +436,8 @@
             A.send({
               type: 'state', seed, roundN, t: Math.round(gt * 100) / 100,
               hp,
-              wz: { host: wounds.host.map(w => w.zone), guest: wounds.guest.map(w => w.zone) }
+              wz: { host: wounds.host.map(w => w.zone), guest: wounds.guest.map(w => w.zone) },
+              dead: deadRole
             });
           }
           break;
@@ -382,6 +459,12 @@
                 .filter(z => ['head', 'body', 'leg'].includes(z))
                 .map(z => ({ zone: z, drip: 0 }));
             }
+          }
+          // A reload mid-ragdoll rejoins the death pause (shortened)
+          if (msg.dead === 'host' || msg.dead === 'guest') {
+            deadRole = msg.dead;
+            respawnAt = performance.now() + 1500;
+            spawnRagdoll(deadRole, deadRole === 'host' ? 1 : -1);
           }
           worldReady = true;
           hostDealDeadline = Infinity;
@@ -428,8 +511,17 @@
         if (arrows.length) physStep();
       }
 
+      // A death pauses the duel: ragdoll for a beat, then the host re-deals
+      if (deadRole) {
+        stepRagdoll(dt);
+        if (now > respawnAt && (A.state.solo || A.state.role === 'host')) {
+          nextRound();
+        }
+      }
+
       // Bleeding: open wounds drip until the duel is re-dealt
       for (const role of ['host', 'guest']) {
+        if (role === deadRole) continue; // the ragdoll drips on its own
         for (const w of wounds[role]) {
           w.drip -= dt;
           if (w.drip <= 0 && blood.length < 80) {
@@ -503,6 +595,7 @@
         ctx.fillStyle = GRAY;
         ctx.fillRect(X(pos[role] - PLAT_W / 2), Y(fy), S(PLAT_W), S(PLAT_H));
         ctx.fillRect(X(pos[role] - 0.004), Y(fy + PLAT_H), S(0.008), S(0.02));
+        if (role === deadRole) continue; // the ragdoll below replaces it
         drawArcher(pos[role], role === 'host' ? 1 : -1, col, fy,
           mine && av ? av.a : null);
 
@@ -528,6 +621,24 @@
           ctx.font = `bold ${Math.round(S(0.024))}px "Courier New", monospace`;
           ctx.fillText('YOU', X(pos[role]), Y(fy - 0.152));
         }
+      }
+
+      // The fallen archer, tumbling
+      if (ragdoll) {
+        const pts = ragdoll.pts;
+        const col = (A.state.solo && ragdoll.role === 'guest') ? GRAY
+          : (ragdoll.role === 'host' ? BLUE : ORANGE);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = Math.max(2, S(0.008));
+        ctx.beginPath();
+        ctx.moveTo(X(pts[1].x), Y(pts[1].y)); ctx.lineTo(X(pts[2].x), Y(pts[2].y)); // torso
+        ctx.moveTo(X(pts[2].x), Y(pts[2].y)); ctx.lineTo(X(pts[3].x), Y(pts[3].y)); // legs
+        ctx.moveTo(X(pts[2].x), Y(pts[2].y)); ctx.lineTo(X(pts[4].x), Y(pts[4].y));
+        ctx.moveTo(X(pts[1].x), Y(pts[1].y)); ctx.lineTo(X(pts[5].x), Y(pts[5].y)); // arm
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(X(pts[0].x), Y(pts[0].y), S(0.016), 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       // Blood droplets falling from open wounds
@@ -600,6 +711,10 @@
 
     status() {
       if (!worldReady) return 'PACING OUT THE FIELD...';
+      if (deadRole) {
+        const me = A.state.solo ? 'host' : myRole();
+        return deadRole === me ? 'YOU ARE DOWN... RESPAWNING' : 'RIVAL IS DOWN... RESPAWNING';
+      }
       if (!canFire()) return null;
       return A.state.solo
         ? 'HIT THE DUMMY · SHOOT AT WILL'
@@ -667,7 +782,8 @@
     arrows: arrows.length, stuck: stuck.length, canFire: canFire(),
     hp: { host: hp.host, guest: hp.guest },
     wounds: { host: wounds.host.map(w => w.zone), guest: wounds.guest.map(w => w.zone) },
-    blood: blood.length
+    blood: blood.length,
+    dead: deadRole, ragdoll: !!ragdoll
   });
   A.state.arFire = (a10, p) => {
     if (!canFire()) return false;
