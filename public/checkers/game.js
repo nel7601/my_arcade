@@ -40,6 +40,8 @@
   let doneAt = 0;
   let aiAt = 0;
   let nextPoke = Infinity;
+  let anim = null;               // {to, from, born, dur} sliding piece
+  let fading = null;             // {i, v, born} captured piece fading out
 
   const myRole = () => A.state.role;
   const foe = (r) => (r === 'host' ? 'guest' : 'host');
@@ -121,7 +123,14 @@
     const m = legalMoves(board, role, chain).find(x => x.from === from && x.to === to);
     if (!m) return false;
 
+    // Remember what to animate before the move mutates the board
+    const overV = m.over !== null ? board[m.over] : null;
     const fx = execMove(board, m);
+    anim = {
+      to: m.to, from: m.from, born: performance.now(),
+      dur: m.over !== null ? 260 : 180
+    };
+    if (m.over !== null) fading = { i: m.over, v: overV, born: performance.now() };
     A.beep(role === myRole() ? 459 : 320, 0.04);
     if (fx.captured && role === myRole()) {
       A.addScore(1);
@@ -194,6 +203,8 @@
       turnRole = 'host';
       chain = -1;
       sel = null;
+      anim = null;
+      fading = null;
       gameOver = false;
       aiAt = performance.now() + 1000;
       nextPoke = Infinity;
@@ -225,6 +236,8 @@
           turnRole = msg.turnRole === 'guest' ? 'guest' : 'host';
           chain = Number.isInteger(msg.chain) ? msg.chain : -1;
           sel = null;
+          anim = null;
+          fading = null;
           gameOver = !legalMoves(board, turnRole, chain).length;
           nextPoke = Infinity;
           break;
@@ -322,17 +335,13 @@
         }
       }
 
-      // Pieces
-      for (let i = 0; i < N * N; i++) {
-        if (!board[i]) continue;
-        const [vc, vr] = V(i);
-        const cx = BX + (vc + 0.5) * C, cy = BY + (vr + 0.5) * C;
-        const king = board[i] === 'H' || board[i] === 'G';
-        ctx.fillStyle = ownerOf(board[i]) === 'host' ? BLUE : ORANGE;
+      // One piece, at any position (cx,cy in court units)
+      const drawPiece = (v, cx, cy) => {
+        ctx.fillStyle = ownerOf(v) === 'host' ? BLUE : ORANGE;
         ctx.beginPath();
         ctx.arc(X(cx), Y(cy), S(C * 0.36), 0, Math.PI * 2);
         ctx.fill();
-        if (king) {
+        if (v === 'H' || v === 'G') {
           ctx.strokeStyle = '#000';
           ctx.lineWidth = Math.max(2, S(0.008));
           ctx.beginPath();
@@ -343,9 +352,43 @@
           ctx.arc(X(cx), Y(cy), S(C * 0.07), 0, Math.PI * 2);
           ctx.fill();
         }
+      };
+      const center = (i) => {
+        const [vc, vr] = V(i);
+        return [BX + (vc + 0.5) * C, BY + (vr + 0.5) * C];
+      };
+
+      // A captured piece fades away where it stood
+      if (fading) {
+        const t = (now - fading.born) / 320;
+        if (t >= 1) {
+          fading = null;
+        } else {
+          ctx.globalAlpha = 1 - t;
+          drawPiece(fading.v, ...center(fading.i));
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // Pieces (the freshest one slides from its old square)
+      for (let i = 0; i < N * N; i++) {
+        if (!board[i]) continue;
+        let [cx, cy] = center(i);
+        if (anim && anim.to === i) {
+          const t = Math.min(1, (now - anim.born) / anim.dur);
+          if (t >= 1) {
+            anim = null;
+          } else {
+            const e = 1 - (1 - t) * (1 - t); // ease-out
+            const [fx0, fy0] = center(anim.from);
+            cx = fx0 + (cx - fx0) * e;
+            cy = fy0 + (cy - fy0) * e;
+          }
+        }
+        drawPiece(board[i], cx, cy);
         // Selected piece / chained piece: blinking ring
         if ((sel === i || (chain === i && turnRole === me)) &&
-            Math.floor(now / 250) % 2 === 0) {
+            !(anim && anim.to === i) && Math.floor(now / 250) % 2 === 0) {
           ctx.strokeStyle = color;
           ctx.lineWidth = Math.max(2, S(0.01));
           ctx.beginPath();
@@ -378,6 +421,8 @@
     turnRole = t === 'guest' ? 'guest' : 'host';
     chain = Number.isInteger(ch) ? ch : -1;
     sel = null;
+    anim = null;
+    fading = null;
     gameOver = false;
   };
 })();
