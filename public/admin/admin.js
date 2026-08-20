@@ -17,7 +17,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 (() => {
   // Alphabetical, like the portal cards
-  const GAMES = ['archer', 'battleship', 'breakout', 'bricks', 'checkers', 'connect4', 'flappy', 'frogger', 'invaders', 'mines', 'missiles', 'pong', 'snake', 'tanks', 'tetris', 'tictactoe'];
+  const GAMES = ['archer', 'battleship', 'breakout', 'bricks', 'checkers', 'connect4', 'flappy', 'frogger', 'invaders', 'mines', 'missiles', 'parcheesi', 'pong', 'snake', 'tanks', 'tetris', 'tictactoe'];
   const el = (id) => document.getElementById(id);
   const TOKEN_KEY = 'arcade_admin_token';
 
