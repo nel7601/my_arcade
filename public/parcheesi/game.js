@@ -33,9 +33,21 @@
   const START = { host: 5, guest: 39 };   // classic yellow / red doors
   const EXIT = { host: 68, guest: 34 };   // last ring square before the corridor
 
-  // Board: 19x19 grid (arms 3 wide and 8 long, like the real board)
-  const C = 0.05;
-  const BX = (1 - 19 * C) / 2;
+  // Board: 19x19 grid (arms 3 wide and 8 long, like the real board).
+  // The three middle lanes are WIDER than the arm steps, so the tracks
+  // the pawns ride are roomier while the board still fits the phone.
+  const CL = 0.047;               // step length along the arms
+  const CM = 0.064;               // width of the three middle lanes
+  const SIZE = (i) => (i >= 8 && i <= 10 ? CM : CL);
+  const OFF = (() => {
+    const o = [];
+    let a = 0;
+    for (let i = 0; i < 19; i++) { o.push(a); a += SIZE(i); }
+    o.push(a);
+    return o;
+  })();
+  const BTOT = OFF[19];
+  const BX = (1 - BTOT) / 2;
   const BY = 0.155;
   const DIE = { x: 0.5, y: 1.185, s: 0.1 }; // die box below the board
 
@@ -65,13 +77,24 @@
     host: [[9, 17], [9, 16], [9, 15], [9, 14], [9, 13], [9, 12], [9, 11]],
     guest: [[9, 1], [9, 2], [9, 3], [9, 4], [9, 5], [9, 6], [9, 7]]
   };
-  // Yard slots (pawns waiting to come out)
-  const YARD = {
-    host: [[13.5, 14], [16.5, 14], [13.5, 17], [16.5, 17]],
-    guest: [[2.5, 2], [5.5, 2], [2.5, 5], [5.5, 5]]
-  };
+  const cellXY = (c, r) => [BX + OFF[c] + SIZE(c) / 2, BY + OFF[r] + SIZE(r) / 2];
+  const cellRect = (c, r) => [BX + OFF[c], BY + OFF[r], SIZE(c), SIZE(r)];
 
-  const cellXY = (c, r) => [BX + (c + 0.5) * C, BY + (r + 0.5) * C];
+  // Yards: a compact box centered in each corner region (smaller than
+  // the corner itself), with the four waiting slots inside
+  const YS = 0.26; // yard box side
+  function yardBox(role) {
+    const reg = 8 * CL;                        // corner region side
+    const x0 = role === 'host' ? BX + OFF[11] : BX;
+    const y0 = role === 'host' ? BY + OFF[11] : BY;
+    return { x: x0 + (reg - YS) / 2, y: y0 + (reg - YS) / 2, s: YS };
+  }
+  function yardSlot(role, i) {
+    const b = yardBox(role);
+    const fx = i % 2 ? 0.7 : 0.3;
+    const fy = i < 2 ? 0.32 : 0.72;
+    return [b.x + b.s * fx, b.y + b.s * fy];
+  }
 
   let pawns = { host: [], guest: [] };  // 4x {st:'home'|'ring'|'corr'|'goal', pos}
   let turn = 'host';
@@ -81,6 +104,9 @@
   let lastMoved = { host: -1, guest: -1 };
   let pauseUntil = 0;
   let pauseMsg = '';
+  let diceAnim = null;           // {start, until, final} tumbling-die animation
+  const ROLL_MS = 750;
+  const rolling = () => diceAnim !== null && performance.now() < diceAnim.until;
   let gameOver = false;
   let doneAt = 0;
   let aiAt = 0;
@@ -101,6 +127,7 @@
     lastMoved = { host: -1, guest: -1 };
     gameOver = false;
     pauseMsg = '';
+    diceAnim = null;
     aiAt = performance.now() + 1200;
   }
 
@@ -211,6 +238,8 @@
   function processRoll(role, v) {
     if (gameOver || stage !== 'roll' || role !== turn) return false;
     die = v;
+    const t0 = performance.now();
+    diceAnim = { start: t0, until: t0 + ROLL_MS, final: v };
     A.beep(role === myRole() ? 459 : 320, 0.04);
     if (v === 6) {
       sixStreak += 1;
@@ -378,7 +407,7 @@
         myRoll();
         return;
       }
-      if (stage !== 'move') return;
+      if (stage !== 'move' || rolling()) return;
 
       // Tap a pawn (nearest movable pawn wins; generous radius)
       const moves = legalMoves(myRole(), die);
@@ -428,6 +457,8 @@
     let head;
     if (gameOver) {
       head = '';
+    } else if (rolling()) {
+      head = 'ROLLING...';
     } else if (stage === 'pause') {
       head = pauseMsg;
     } else if (turn !== myRole()) {
@@ -443,34 +474,35 @@
   function drawBoard(now, color) {
     ctx.lineWidth = 1;
 
-    // Yards: a soft box per player with its color
+    // Yards: a compact box per player with its color
     for (const role of ['host', 'guest']) {
       ctx.strokeStyle = COL[role];
       ctx.globalAlpha = 0.5;
-      const [bx, by] = role === 'host' ? [11.5, 11.5] : [0.5, 0.5];
-      ctx.strokeRect(X(BX + bx * C), Y(BY + by * C), S(7 * C), S(7 * C));
+      const bxx = yardBox(role);
+      ctx.strokeRect(X(bxx.x), Y(bxx.y), S(bxx.s), S(bxx.s));
       ctx.globalAlpha = 1;
     }
 
     // Ring squares
     for (let s = 1; s <= RING; s++) {
       const [c, r] = RXY[s - 1];
+      const [rx, ry, rw, rh] = cellRect(c, r);
       const [cx, cy] = cellXY(c, r);
       ctx.strokeStyle = color;
       ctx.globalAlpha = 0.28;
-      ctx.strokeRect(X(cx - C / 2), Y(cy - C / 2), S(C), S(C));
+      ctx.strokeRect(X(rx), Y(ry), S(rw), S(rh));
       ctx.globalAlpha = 1;
       if (s === START.host || s === START.guest) {
         // Doors get their owner's tint
         ctx.fillStyle = COL[s === START.host ? 'host' : 'guest'];
         ctx.globalAlpha = 0.25;
-        ctx.fillRect(X(cx - C / 2), Y(cy - C / 2), S(C), S(C));
+        ctx.fillRect(X(rx), Y(ry), S(rw), S(rh));
         ctx.globalAlpha = 1;
       } else if (SAFE.has(s)) {
         // Safe squares carry a small diamond
         ctx.fillStyle = color;
         ctx.globalAlpha = 0.45;
-        const d = C * 0.16;
+        const d = Math.min(rw, rh) * 0.18;
         ctx.beginPath();
         ctx.moveTo(X(cx), Y(cy - d));
         ctx.lineTo(X(cx + d), Y(cy));
@@ -487,15 +519,15 @@
       ctx.fillStyle = COL[role];
       ctx.globalAlpha = 0.18;
       for (const [c, r] of CXY[role]) {
-        const [cx, cy] = cellXY(c, r);
-        ctx.fillRect(X(cx - C / 2), Y(cy - C / 2), S(C), S(C));
+        const [rx, ry, rw, rh] = cellRect(c, r);
+        ctx.fillRect(X(rx), Y(ry), S(rw), S(rh));
       }
       ctx.globalAlpha = 1;
     }
     const [gx, gy] = cellXY(9, 9);
     ctx.strokeStyle = color;
     ctx.globalAlpha = 0.6;
-    ctx.strokeRect(X(gx - 1.5 * C), Y(gy - 1.5 * C), S(3 * C), S(3 * C));
+    ctx.strokeRect(X(BX + OFF[8]), Y(BY + OFF[8]), S(3 * CM), S(3 * CM));
     ctx.globalAlpha = 1;
     ctx.fillStyle = color;
     ctx.font = `bold ${Math.round(S(0.02))}px "Courier New", monospace`;
@@ -507,8 +539,7 @@
   function pawnXY(role, i) {
     const p = pawns[role][i];
     if (p.st === 'home') {
-      const [c, r] = YARD[role][i];
-      return cellXY(c, r);
+      return yardSlot(role, i);
     }
     if (p.st === 'ring') {
       const [c, r] = RXY[p.pos - 1];
@@ -539,7 +570,7 @@
   function drawPawns(now, color) {
     const blinkOn = Math.floor(now / 300) % 2 === 0;
     const movable = new Set(
-      (!gameOver && stage === 'move' && turn === myRole())
+      (!gameOver && stage === 'move' && turn === myRole() && !rolling())
         ? legalMoves(myRole(), die).map(m => m.i) : []
     );
     for (const role of ['host', 'guest']) {
@@ -563,29 +594,60 @@
     }
   }
 
+  const PIPS = {
+    1: [[0, 0]],
+    2: [[-1, -1], [1, 1]],
+    3: [[-1, -1], [0, 0], [1, 1]],
+    4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+    5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
+    6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]
+  };
+
+  function drawDieFace(cxPx, cyPx, sidePx, face, ang, colBox, colPips) {
+    ctx.save();
+    ctx.translate(cxPx, cyPx);
+    ctx.rotate(ang);
+    ctx.strokeStyle = colBox;
+    ctx.lineWidth = Math.max(2, S(0.006));
+    ctx.strokeRect(-sidePx / 2, -sidePx / 2, sidePx, sidePx);
+    ctx.fillStyle = colPips;
+    for (const [ox, oy] of PIPS[face] || []) {
+      ctx.beginPath();
+      ctx.arc(ox * sidePx * 0.24, oy * sidePx * 0.24, S(0.009), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawDie(now, color) {
     const mine = !gameOver && turn === myRole();
     const [dx, dy, ds] = [DIE.x, DIE.y, DIE.s];
-    ctx.strokeStyle = mine ? color : '#777';
-    ctx.lineWidth = Math.max(2, S(0.006));
-    ctx.strokeRect(X(dx - ds / 2), Y(dy - ds / 2), S(ds), S(ds));
+    const boxCol = mine ? color : '#777';
+    const pipCol = mine ? color : '#999';
+
+    if (diceAnim && now >= diceAnim.until) {
+      diceAnim = null;
+      A.beep(600, 0.06); // the die settles
+    }
+
+    if (diceAnim) {
+      // Tumble: the die spins, hops and flickers faces, then settles
+      const t = Math.min(1, (now - diceAnim.start) / ROLL_MS);
+      const ease = 1 - (1 - t) * (1 - t);
+      const face = t > 0.85 ? diceAnim.final : 1 + (Math.floor(now / 80) * 7 + 3) % 6;
+      const ang = (1 - ease) * 9 + Math.sin(now / 40) * (1 - t) * 0.25;
+      const hop = Math.abs(Math.sin(t * Math.PI * 3)) * (1 - t) * 0.035;
+      const scale = 1 + (1 - t) * 0.25;
+      drawDieFace(X(dx), Y(dy - hop), S(ds * scale), face, ang, boxCol, pipCol);
+      return;
+    }
 
     if (die > 0) {
-      // Pips
-      const P = {
-        1: [[0, 0]],
-        2: [[-1, -1], [1, 1]],
-        3: [[-1, -1], [0, 0], [1, 1]],
-        4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
-        5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
-        6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]
-      };
-      ctx.fillStyle = mine ? color : '#999';
-      for (const [ox, oy] of P[die]) {
-        ctx.beginPath();
-        ctx.arc(X(dx + ox * ds * 0.24), Y(dy + oy * ds * 0.24), S(0.009), 0, Math.PI * 2);
-        ctx.fill();
-      }
+      drawDieFace(X(dx), Y(dy), S(ds), die, 0, boxCol, pipCol);
+    } else {
+      ctx.strokeStyle = boxCol;
+      ctx.lineWidth = Math.max(2, S(0.006));
+      ctx.strokeRect(X(dx - ds / 2), Y(dy - ds / 2), S(ds), S(ds));
     }
     if (mine && stage === 'roll' && Math.floor(now / 400) % 2 === 0) {
       ctx.fillStyle = color;
@@ -598,6 +660,7 @@
   // Exposed for automated tests; not part of the game logic
   A.state.pcDebug = () => ({
     turn, stage, die, sixStreak, gameOver,
+    rolling: rolling(),
     timeLeft: A.state.timeLeft,
     pawns: {
       host: pawns.host.map(p => ({ ...p })),
@@ -616,6 +679,7 @@
     sixStreak = 0;
     gameOver = false;
     pauseMsg = '';
+    diceAnim = null;
   };
   A.state.pcRoll = (v) => {
     if (turn !== myRole() || stage !== 'roll' || gameOver) return false;
