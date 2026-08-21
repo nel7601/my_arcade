@@ -27,6 +27,7 @@ one deploy and one look.
 | **CHECKERS** | [`/checkers/`](public/checkers) | English draughts with forced captures and kings: every piece taken is a point |
 | **ARCHER** | [`/archer/`](public/archer) | Real-time archery duel on bobbing platforms, no turns: head shots pay double |
 | **PARCHEESI** | [`/parcheesi/`](public/parcheesi) | The classic 68-square race, no clock: first to walk all 4 pawns home wins |
+| **CHESS** | [`/chess/`](public/chess) | Full legal chess with castling, en passant and promotion; checkmate wins, no clock |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red
