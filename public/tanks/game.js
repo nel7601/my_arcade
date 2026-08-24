@@ -72,6 +72,7 @@
   let digs = { host: DIGGER_AMMO, guest: DIGGER_AMMO }; // diggers left
   let shots = [];                // live projectiles
   let booms = [];                // explosion rings (visual only)
+  let lastBoom = null;           // {x, y, direct} last detonation (tests/HUD)
   let firedThisVolley = false;
   let acc = 0;                   // fixed-step accumulator
   let aim = null;                // {sx, sy, x, y} while dragging
@@ -142,6 +143,7 @@
     wind = windFor(0);
     shots = [];
     booms = [];
+    lastBoom = null;
     firedThisVolley = false;
     acc = 0;
     aim = null;
@@ -190,9 +192,24 @@
     A.beep(320, 0.08);
   }
 
-  function explode(s) {
+  // Tanks are solid: a shell that touches a hull explodes right there.
+  // Box matches the drawn tank (hull + dome). Returns the role hit.
+  function tankHit(s) {
+    for (const role of A.state.solo ? ['host'] : ['host', 'guest']) {
+      const t = tanks[role];
+      if (Math.abs(s.x - t.x) < 0.03 && s.y > t.y - 0.042 && s.y <= t.y + 0.006) {
+        return role;
+      }
+    }
+    return null;
+  }
+
+  function explode(s, onTank) {
     const wp = WEAPONS[s.w];
-    const cy = Math.min(s.y, groundAtX(s.x));
+    // A direct tank hit detonates at the point of impact; otherwise the
+    // shell buries itself no deeper than the surface
+    const cy = onTank ? s.y : Math.min(s.y, groundAtX(s.x));
+    lastBoom = { x: Math.round(s.x * 1000) / 1000, y: Math.round(cy * 1000) / 1000, direct: !!onTank };
 
     // Carve the crater: the surface drops to the bottom edge of the blast
     for (let i = 0; i < N; i++) {
@@ -268,9 +285,16 @@
         shots.splice(i, 1);
         continue;
       }
-      if (s.age > 0.04 && s.y >= groundAtX(s.x)) {
-        shots.splice(i, 1);
-        explode(s);
+      if (s.age > 0.04) {
+        if (tankHit(s)) {          // armor stops the shell: boom on the spot
+          shots.splice(i, 1);
+          explode(s, true);
+          continue;
+        }
+        if (s.y >= groundAtX(s.x)) {
+          shots.splice(i, 1);
+          explode(s, false);
+        }
       }
     }
     if (firedThisVolley && shots.length === 0) endVolley();
@@ -286,6 +310,7 @@
     for (let i = 0; i < 30000; i++) {
       age += DT; vx += wind * DT; vy += G * DT; x += vx * DT; y += vy * DT;
       if (x < -0.15 || x > CW + 0.15 || y > 1.4) return null;
+      if (age > 0.04 && tankHit({ x, y })) return { x, y, direct: true };
       if (age > 0.04 && y >= groundAtX(x)) return { x, y };
     }
     return null;
@@ -626,6 +651,7 @@
     },
     targets: targets.map(t => t.x),
     digs: { host: digs.host, guest: digs.guest },
+    lastBoom: lastBoom ? { ...lastBoom } : null,
     canFire: canFire()
   });
   A.state.tkFire = (a10, p, w) => {
@@ -642,6 +668,9 @@
       for (let p = 15; p <= 100; p += 5) {
         const hit = ghostShot(myRole(), a, p);
         if (!hit) continue;
+        if (hit.direct && Math.abs(hit.x - tx) < 0.05) {
+          return { a, p, err: 0, ix: hit.x, direct: true }; // armor contact
+        }
         const err = Math.abs(hit.x - tx);
         if (!best || err < best.err) best = { a, p, err, ix: hit.x };
       }
