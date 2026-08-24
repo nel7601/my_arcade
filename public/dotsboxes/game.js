@@ -211,7 +211,6 @@
     game: 'dotsboxes',
     title: 'DOTS & BOXES',
     solo: true,
-    untimed: true,     // the board itself ends the match
     soloVersus: true,  // the CPU keeps a real score
 
     getOpts() {
@@ -282,7 +281,7 @@
       }
       // The whistle: the match ends shortly after the last box
       if (gameOver && now > doneAt && (A.state.solo || A.state.role === 'host') &&
-          A.state.timeLeft === null) {
+          (A.state.timeLeft === null || A.state.timeLeft > 0.1)) {
         A.state.timeLeft = 0.01;
       }
       if (A.state.solo && !gameOver && turn === 'guest' && now > aiAt) {

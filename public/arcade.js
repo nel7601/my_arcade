@@ -63,6 +63,7 @@ window.Arcade = (() => {
     theirRematch: false,
 
     timeLeft: null,
+    untimed: false,           // seconds 0 = endless match, no countdown
     timeUpSent: false,
     lastClockSent: 0,
     result: null              // {won, tie, confetti[], lastNow}
@@ -237,6 +238,7 @@ window.Arcade = (() => {
         state.reconnectTries = 0;
         state.role = msg.role;
         if (msg.config) state.config = msg.config;
+        state.untimed = !(state.config.seconds > 0);
         saveSession();
         if (state.phase === 'over') break;
         if (msg.started) {
@@ -328,9 +330,11 @@ window.Arcade = (() => {
     state.score = { me: 0, opp: 0 };
     state.myRematch = false;
     state.theirRematch = false;
-    // Untimed games (e.g. PARCHEESI) have no countdown: they end when the
-    // game itself blows the whistle by setting state.timeLeft = 0.01
-    state.timeLeft = GAME.untimed ? null : state.config.seconds;
+    // seconds 0 = endless: no countdown at all. The match then ends only
+    // when the game itself blows the whistle (state.timeLeft = 0.01) or a
+    // player quits. Any game can be played either way from its TIME row.
+    state.untimed = !(state.config.seconds > 0);
+    state.timeLeft = state.untimed ? null : state.config.seconds;
     state.timeUpSent = false;
     state.result = null;
     state.serveMsg = null;
@@ -364,7 +368,7 @@ window.Arcade = (() => {
     setQuitVisible(false);
     clearSession();
     state.phase = 'over';
-    state.timeLeft = GAME.untimed ? null : 0;
+    state.timeLeft = state.untimed ? null : 0;
     // soloVersus games (CPU rival with a synced-style score) use the
     // duel result scenes even in single player
     const solo = state.solo && !GAME.soloVersus;

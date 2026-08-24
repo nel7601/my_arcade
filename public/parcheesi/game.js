@@ -349,7 +349,6 @@
     game: 'parcheesi',
     title: 'PARCHEESI',
     solo: true,
-    untimed: true,     // no clock: first to walk all 4 pawns in wins
     soloVersus: true,  // the CPU is a real rival with its own score
 
     onStart() {
@@ -431,7 +430,7 @@
       aiStep(now);
       // The whistle: untimed match ends the moment someone has all four in
       if (gameOver && now > doneAt && (A.state.solo || A.state.role === 'host') &&
-          A.state.timeLeft === null) {
+          (A.state.timeLeft === null || A.state.timeLeft > 0.1)) {
         A.state.timeLeft = 0.01;
       }
     },

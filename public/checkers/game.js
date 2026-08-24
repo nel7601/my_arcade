@@ -276,7 +276,7 @@
       }
       // The referee blows the early whistle once someone is out of moves
       if (gameOver && now > doneAt && (A.state.solo || A.state.role === 'host') &&
-          A.state.timeLeft > 0.1) {
+          (A.state.timeLeft === null || A.state.timeLeft > 0.1)) {
         A.state.timeLeft = 0.01;
       }
       if (A.state.solo && !gameOver && turnRole === 'guest' && now > aiAt) {
