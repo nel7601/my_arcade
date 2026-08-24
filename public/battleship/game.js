@@ -333,7 +333,7 @@
       aiStep(dt);
       // The referee blows the early whistle once a fleet is destroyed
       if (gameOver && now > doneAt && (A.state.solo || A.state.role === 'host') &&
-          A.state.timeLeft > 0.1) {
+          (A.state.timeLeft === null || A.state.timeLeft > 0.1)) {
         A.state.timeLeft = 0.01;
       }
     },

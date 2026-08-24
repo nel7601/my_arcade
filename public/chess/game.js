@@ -232,6 +232,10 @@
     if (cap) {
       captured[role].push(cap[0]);
       fading = { i: m.to === from ? to : m.to, v: capV || cap, born: performance.now() };
+      // Captures score material points, so a TIMED match has a leader
+      const pts = Math.floor(VAL[cap[0]]) || 1;
+      if (role === myRole()) A.addScore(pts);
+      else if (A.state.solo) A.state.score.opp += pts;
       A.beep(160, 0.12);
     } else {
       A.beep(role === myRole() ? 459 : 320, 0.04);
@@ -246,16 +250,21 @@
       if (inCheckOn(board, opp)) {
         winner = role;
         if (role === myRole()) {
-          A.addScore(1);
+          A.addScore(50); // mate outweighs any material count
           A.flash('CHECKMATE - YOU WIN!');
           A.sndScore();
         } else {
-          if (A.state.solo) A.state.score.opp += 1;
+          if (A.state.solo) A.state.score.opp += 50;
           A.flash('CHECKMATE - YOU LOSE');
           A.beep(120, 0.35);
         }
       } else {
         winner = 'draw';
+        // A stalemate is a DRAW whatever the material says: even out
+        // the scoreboard (both phones run this same line)
+        const mx = Math.max(A.state.score.me, A.state.score.opp);
+        A.state.score.me = mx;
+        A.state.score.opp = mx;
         A.flash('STALEMATE - DRAW');
       }
     } else {
@@ -327,7 +336,6 @@
     game: 'chess',
     title: 'CHESS',
     solo: true,
-    untimed: true,     // checkmate ends it, however long it takes
     soloVersus: true,  // the CPU is a real rival on the scoreboard
 
     onStart() {
@@ -422,7 +430,7 @@
       }
       // The whistle: untimed match ends shortly after mate or stalemate
       if (gameOver && now > doneAt && (A.state.solo || A.state.role === 'host') &&
-          A.state.timeLeft === null) {
+          (A.state.timeLeft === null || A.state.timeLeft > 0.1)) {
         A.state.timeLeft = 0.01;
       }
       if (A.state.solo && !gameOver && turn === 'guest' && now > aiAt) {
