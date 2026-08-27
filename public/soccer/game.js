@@ -65,6 +65,7 @@
   const JOY_R = 0.07;            // drawn radius
   const keys = { a: false, d: false, w: false };
   let lastMeSent = 0;
+  let lastSentVy = 0;
   let lastBallSent = 0;
   let nextPoke = 0;
   let fsTried = false;
@@ -295,23 +296,37 @@
     onMessage(msg) {
       switch (msg.type) {
         case 'me': {
-          // The rival's phone owns the rival player
+          // The rival's phone owns the rival player. Never snap the drawn
+          // position to the packet - store it as a moving TARGET and let
+          // the local copy chase it smoothly (velocities snap safely).
           const r = players[foe(myRole())];
-          r.x = Number(msg.x) || r.x;
-          r.y = Number(msg.y) || GY;
-          r.vx = Number(msg.vx) || 0;
+          r.tgt = {
+            x: Number(msg.x) || r.x,
+            y: Number(msg.y) || GY,
+            vx: Number(msg.vx) || 0,
+            vy: Number(msg.vy) || 0
+          };
+          r.vx = r.tgt.vx;
+          r.vy = r.tgt.vy;
           r.facing = msg.f === -1 ? -1 : 1;
           if (msg.k) r.anim = 0.2;
           break;
         }
 
         case 'ball':
-          // The host's ball is the truth; simulate onward from it
+          // The host's ball is the truth; blend small corrections in
+          // instead of popping, snap only when clearly off course
           if (!isBallBoss()) {
-            ball.x = Number(msg.x);
-            ball.y = Number(msg.y);
+            const ex = Number(msg.x) - ball.x, ey = Number(msg.y) - ball.y;
             ball.vx = Number(msg.vx);
             ball.vy = Number(msg.vy);
+            if (Math.hypot(ex, ey) > 0.12) {
+              ball.x = Number(msg.x);
+              ball.y = Number(msg.y);
+            } else {
+              ball.x += ex * 0.35;
+              ball.y += ey * 0.35;
+            }
           }
           break;
 
@@ -369,12 +384,29 @@
           const [cd, cj] = cpuInput();
           stepPlayer(players.guest, DT, cd, cj);
         } else {
-          // Extrapolate the rival between packets (their phone owns them)
+          // The rival chases a MOVING target: the last packet is advanced
+          // by its own velocity every step, and the drawn player eases
+          // toward it - no more snapping to each packet (jitter-free).
           const r = players[foe(myRole())];
           r.x = Math.max(0.16, Math.min(CW - 0.16, r.x + r.vx * DT));
           r.vy += G_P * DT;
           r.y = Math.min(GY, r.y + r.vy * DT);
           if (r.y >= GY) r.vy = 0;
+          if (r.tgt) {
+            r.tgt.x = Math.max(0.16, Math.min(CW - 0.16, r.tgt.x + r.tgt.vx * DT));
+            r.tgt.vy += G_P * DT;
+            r.tgt.y = Math.min(GY, r.tgt.y + r.tgt.vy * DT);
+            if (r.tgt.y >= GY) r.tgt.vy = 0;
+            const ex = r.tgt.x - r.x, ey = r.tgt.y - r.y;
+            if (Math.hypot(ex, ey) > 0.16) {  // hopelessly behind: snap once
+              r.x = r.tgt.x;
+              r.y = r.tgt.y;
+            } else {                          // otherwise glide onto it
+              const k = Math.min(1, DT * 10);
+              r.x += ex * k;
+              r.y += ey * k;
+            }
+          }
           r.kickT = Math.max(0, r.kickT - DT);
           r.anim = Math.max(0, r.anim - DT);
         }
@@ -415,19 +447,22 @@
         }
       }
 
-      // Streams: my player ~12Hz, the ball (host) ~10Hz
-      if (!A.state.solo && now - lastMeSent > 80) {
+      // Streams: my player ~20Hz (instantly on takeoff), ball ~12Hz
+      const justJumped = me.vy < -0.9 && lastSentVy >= -0.9;
+      if (!A.state.solo && (now - lastMeSent > 50 || justJumped)) {
         lastMeSent = now;
+        lastSentVy = me.vy;
         A.send({
           type: 'me',
           x: Math.round(me.x * 1000) / 1000,
           y: Math.round(me.y * 1000) / 1000,
           vx: Math.round(me.vx * 100) / 100,
+          vy: Math.round(me.vy * 100) / 100,
           f: me.facing,
           k: me.anim > 0.1 ? 1 : 0
         });
       }
-      if (!A.state.solo && isBallBoss() && now - lastBallSent > 100) {
+      if (!A.state.solo && isBallBoss() && now - lastBallSent > 80) {
         lastBallSent = now;
         A.send({
           type: 'ball',
