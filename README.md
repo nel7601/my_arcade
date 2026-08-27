@@ -29,6 +29,7 @@ one deploy and one look.
 | **PARCHEESI** | [`/parcheesi/`](public/parcheesi) | The classic 68-square race, no clock: first to walk all 4 pawns home wins |
 | **CHESS** | [`/chess/`](public/chess) | Full legal chess with castling, en passant and promotion; checkmate wins, no clock |
 | **DOTS & BOXES** | [`/dotsboxes/`](public/dotsboxes) | Draw lines, close boxes to go again; when the grid fills, the biggest land wins |
+| **SOCCER** | [`/soccer/`](public/soccer) | Real-time head soccer: run, jump, and loft the ball into goals floating above the grass |
 
 All matches share the same flow: pick options, share a link, timed match
 (1-4 min) with the countdown between the scores, everything turns red

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>SOCCER - MY ARCADE</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Quit button, visible only while a match is running -->
+  <button id="btn-quit" class="quit hidden">QUIT</button>
+
+  <!-- Main menu -->
+  <div id="menu" class="screen">
+    <h1 class="title game-title">SOCCER</h1>
+    <p class="subtitle">RUN &middot; JUMP &middot; LOFT IT INTO THE FLOATING GOAL</p>
+    <div class="opt-row">
+      <span class="opt-label">TIME</span>
+      <button class="opt-btn" data-min="1">1</button>
+      <button class="opt-btn sel" data-min="2">2</button>
+      <button class="opt-btn" data-min="3">3</button>
+      <button class="opt-btn" data-min="4">4</button>
+      <button class="opt-btn" data-min="0">&#8734;</button>
+      <span class="opt-unit">MIN</span>
+    </div>
+    <button id="btn-create" class="btn">CREATE GAME</button>
+    <button id="btn-solo" class="btn small">PLAY SOLO</button>
+    <p class="hint">Turn your phone sideways to play.<br>Hold to run, swipe up to jump; your boot<br>kicks by itself and LIFTS the ball - the<br>goals float above the grass.</p>
+    <p id="menu-error" class="error"></p>
+    <a class="back-link" href="../">&#9664; MY ARCADE</a>
+  </div>
+
+  <!-- Waiting for the rival -->
+  <div id="waiting" class="screen hidden">
+    <p class="label">GAME LINK</p>
+    <p id="share-url" class="link"></p>
+    <button id="btn-share" class="btn">SHARE LINK</button>
+    <button id="btn-copy" class="btn small">COPY LINK</button>
+    <p id="copy-done" class="error"></p>
+    <p class="hint">Your rival just has to open the link.<br>After sharing it, come back to this screen:<br>the game will start on its own.</p>
+    <p class="blink">WAITING FOR RIVAL...</p>
+    <button id="btn-cancel" class="btn small">CANCEL</button>
+  </div>
+
+  <!-- Joining from a link -->
+  <div id="joining" class="screen hidden">
+    <p class="title small-title">SOCCER</p>
+    <p class="blink">CONNECTING...</p>
+  </div>
+
+  <!-- Game over / disconnection -->
+  <div id="over" class="screen hidden">
+    <p id="over-title" class="title small-title">GAME OVER</p>
+    <p id="over-detail" class="hint"></p>
+    <button id="btn-rematch" class="btn">REMATCH</button>
+    <button id="btn-exit" class="btn small">EXIT</button>
+  </div>
+
+  <script src="/arcade.js"></script>
+  <script src="/soccer/game.js"></script>
+</body>
+</html>
