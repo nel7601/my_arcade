@@ -160,6 +160,20 @@
         }
       }
     }
+    // Solid plinth under the shelf, down to the grass: the ball bounces
+    // off its face instead of rolling underneath and getting stuck
+    if (ball.y > SHELF_Y + BAR_T) {
+      if (left && ball.x - BR < GOAL_D) {
+        ball.x = GOAL_D + BR;
+        ball.vx = Math.abs(ball.vx) * REST + 0.02;
+        A.beep(226, 0.04);
+      } else if (!left && ball.x + BR > CW - GOAL_D) {
+        ball.x = CW - GOAL_D - BR;
+        ball.vx = -Math.abs(ball.vx) * REST - 0.02;
+        A.beep(226, 0.04);
+      }
+    }
+
     // Inside the mouth, between the bars: GOAL
     const inMouthY = ball.y - BR > BAR_Y && ball.y + BR < SHELF_Y;
     const behindLine = left ? ball.x < GOAL_D - 0.045 : ball.x > CW - GOAL_D + 0.045;
@@ -201,11 +215,8 @@
       const dy = joy.y - joy.ay;
       if (dx < -JOY_DEAD) dir = -1;
       else if (dx > JOY_DEAD) dir = 1;
-      if (dy < -JOY_JUMP) {
-        if (joy.armed) { jump = true; joy.armed = false; }
-      } else {
-        joy.armed = true; // bring the stick down to re-arm the jump
-      }
+      // Held up = keep hopping, same as holding W on a keyboard
+      if (dy < -JOY_JUMP) jump = true;
     }
     return [dir, jump];
   }
@@ -481,6 +492,15 @@
           ctx.lineTo(X(x0 + GOAL_D), Y(yy));
           ctx.stroke();
         }
+        ctx.globalAlpha = 1;
+
+        // Solid plinth holding the goal up (the ball bounces off it)
+        ctx.fillStyle = '#26333d';
+        ctx.fillRect(X(x0), Y(SHELF_Y + BAR_T), S(GOAL_D), S(GY - SHELF_Y - BAR_T));
+        ctx.strokeStyle = left ? BLUE : ORANGE;
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = Math.max(2, S(0.005));
+        ctx.strokeRect(X(x0), Y(SHELF_Y + BAR_T), S(GOAL_D), S(GY - SHELF_Y - BAR_T));
         ctx.globalAlpha = 1;
       }
 
