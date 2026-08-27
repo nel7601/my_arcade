@@ -59,7 +59,11 @@
   let players = null;            // {host:{x,y,vy,vx,facing,kickT,anim}, guest:{...}}
   let ball = null;               // {x,y,vx,vy}
   let freezeUntil = 0;           // kickoff freeze
-  let touch = null;              // {x, y, y0, jumped}
+  let joy = null;                // floating joystick {ax, ay, x, y, armed}
+  const JOY_DEAD = 0.03;         // stick deadzone before running
+  const JOY_JUMP = 0.055;        // push the stick this far UP to jump
+  const JOY_R = 0.07;            // drawn radius
+  const keys = { a: false, d: false, w: false };
   let lastMeSent = 0;
   let lastBallSent = 0;
   let nextPoke = 0;
@@ -185,19 +189,37 @@
 
   // ---- Control & CPU ------------------------------------------------------------
 
+  // Keyboard on computers (A / D / W), floating joystick on touch
   function myInput() {
-    const me = players[myRole()];
     let dir = 0, jump = false;
-    if (touch) {
-      if (touch.x < me.x - 0.04) dir = -1;
-      else if (touch.x > me.x + 0.04) dir = 1;
-      if (!touch.jumped && (touch.y0 - touch.y > 0.09 || touch.y0 < 0.4)) {
-        jump = true;
-        touch.jumped = true;
+    if (keys.a && !keys.d) dir = -1;
+    else if (keys.d && !keys.a) dir = 1;
+    if (keys.w) jump = true; // stepPlayer only jumps when grounded
+
+    if (joy) {
+      const dx = joy.x - joy.ax;
+      const dy = joy.y - joy.ay;
+      if (dx < -JOY_DEAD) dir = -1;
+      else if (dx > JOY_DEAD) dir = 1;
+      if (dy < -JOY_JUMP) {
+        if (joy.armed) { jump = true; joy.armed = false; }
+      } else {
+        joy.armed = true; // bring the stick down to re-arm the jump
       }
     }
     return [dir, jump];
   }
+
+  window.addEventListener('keydown', (ev) => {
+    if (ev.code === 'KeyA') keys.a = true;
+    else if (ev.code === 'KeyD') keys.d = true;
+    else if (ev.code === 'KeyW') keys.w = true;
+  });
+  window.addEventListener('keyup', (ev) => {
+    if (ev.code === 'KeyA') keys.a = false;
+    else if (ev.code === 'KeyD') keys.d = false;
+    else if (ev.code === 'KeyW') keys.w = false;
+  });
 
   function cpuInput() {
     const p = players.guest;
@@ -239,20 +261,20 @@
 
     onStart() {
       fsTried = false;
-      touch = null;
+      joy = null;
       kickoff();
       tryRotate();
     },
 
     onResume() {
-      touch = null;
+      joy = null;
       kickoff();
       A.send({ type: 'state_req' });
       nextPoke = performance.now() + 3000;
     },
 
     onEnd() {
-      touch = null;
+      joy = null;
     },
 
     onPeerBack() {
@@ -308,12 +330,13 @@
       if (A.state.phase !== 'playing') return;
       if (ph === 'down') {
         tryFullscreenOnce();
-        touch = { x, y, y0: y, jumped: false };
+        // The joystick appears wherever the finger lands
+        joy = { ax: x, ay: y, x, y, armed: true };
         return;
       }
-      if (!touch) return;
-      if (ph === 'move') { touch.x = x; touch.y = y; return; }
-      touch = null;
+      if (!joy) return;
+      if (ph === 'move') { joy.x = x; joy.y = y; return; }
+      joy = null;
     },
 
     step(dt, now) {
@@ -488,6 +511,25 @@
       ctx.arc(X(ball.x), Y(ball.y), S(BR * 0.45), 0, Math.PI * 2);
       ctx.stroke();
 
+      // Floating joystick while a finger is down
+      if (joy) {
+        const dx = joy.x - joy.ax, dy = joy.y - joy.ay;
+        const len = Math.hypot(dx, dy) || 1;
+        const cl = Math.min(len, JOY_R);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = Math.max(2, S(0.005));
+        ctx.beginPath();
+        ctx.arc(X(joy.ax), Y(joy.ay), S(JOY_R), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(X(joy.ax + dx / len * cl), Y(joy.ay + dy / len * cl), S(0.025), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
       // Kickoff countdown
       if (performance.now() < freezeUntil) {
         ctx.fillStyle = color;
@@ -506,7 +548,7 @@
     },
 
     status() {
-      return 'HOLD TO RUN · SWIPE UP TO JUMP · THE BOOT KICKS BY ITSELF';
+      return 'KEYS: A·D RUN, W JUMP · TOUCH: JOYSTICK · THE BOOT KICKS ALONE';
     }
   });
 
